@@ -512,7 +512,7 @@ sections:
         $compiler = new Compiler(function (string $message) use (&$warnings): void {
             $warnings[] = $message;
         });
-        $compiler->compile('title: 忽略
+        $compiler->compileSource('title: 忽略
 body:
   - type: text
     text: A');
@@ -867,7 +867,7 @@ sections:
 
     private function compile(string $yaml): string
     {
-        return $this->compiler->compile($yaml);
+        return $this->compiler->compileSource($yaml);
     }
 
     private function expectError(string $yaml, string $needle): void
