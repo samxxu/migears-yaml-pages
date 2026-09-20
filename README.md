@@ -20,7 +20,7 @@ A declarative YAML page definition tool that compiles `.page.yaml` declarations 
 
 **Two deliberate compilations:**
 
-1. yaml-pages compiles the YAML declaration into `.tpl.php` sugar syntax (`## $expr ##`). The intermediate output stays readable, so each DSL keyword maps visibly to template syntax.
+1. yaml-pages parses the YAML declaration into the array DSL of `migears/pages`; the shared compiler there turns it into `.tpl.php` sugar syntax (`## $expr ##`). The intermediate output stays readable, so each DSL keyword maps visibly to template syntax.
 2. `migears/template`'s `TemplateCompiler` turns that sugar into a pure PHP template (mtime-cached, recompiled only when the template changes). Rendering is plain PHP: the template runs and its variables are output to the browser as HTML. The declaration layer never enters runtime.
 
 The generated `.tpl.php` file is a derived artifact — re-running the compiler overwrites it. Edit the YAML, never the output.
@@ -368,7 +368,7 @@ MIT
 
 **刻意两次编译：**
 
-1. yaml-pages 把 YAML 声明编译为 `.tpl.php` 糖语法（`## $expr ##`）。中间产物保持可读，每个 DSL 词汇对应什么模板语法一目了然。
+1. yaml-pages 把 YAML 声明解析为 `migears/pages` 的数组 DSL，由那里的共享编译器翻译为 `.tpl.php` 糖语法（`## $expr ##`）。中间产物保持可读，每个 DSL 词汇对应什么模板语法一目了然。
 2. `migears/template` 的 `TemplateCompiler` 把糖编译成纯 PHP 模板（mtime 缓存，仅模板变更后重编一次）。渲染由 PHP 执行：模板运行时把变量以 HTML 形式输出给浏览器，声明层不进入运行期。
 
 生成的 `.tpl.php` 是派生文件——重新编译即覆盖。修改 YAML，不要改产物。
