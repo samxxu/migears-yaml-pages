@@ -857,6 +857,14 @@ sections:
         );
     }
 
+    public function testColumnContentMustBeNodeTree(): void
+    {
+        $this->expectError(
+            "body:\n  - type: table\n    items: u\n    columns:\n      - label: A\n        content: 裸文本",
+            'content: 必须是节点树数组'
+        );
+    }
+
     private function compile(string $yaml): string
     {
         return $this->compiler->compile($yaml);

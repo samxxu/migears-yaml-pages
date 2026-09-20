@@ -503,6 +503,7 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | 未知键 | 既非该节点的 DSL 字段，也不在透传白名单 | 未知属性 "levl" |
 | 花括号错乱 | 插值出现 `{{{` 或 `}}}` | 插值符号不能连续三个花括号 |
 | section 值类型错误 | `sections` 的某个值不是节点树数组 | sections.content: section 的值必须是节点树数组 |
+| column 值类型错误 | `column.content` 不是节点树数组 | columns[0].content: 必须是节点树数组 |
 | 连字符指令名 | `x-on-*` / `x-bind-*` / `x-transition-*`（Alpine 只有冒号形式） | 请写 "x-on:click" 或 "@click" |
 | `__` 误用 | `__event` 是 XML 版的写法 | YAML 里直接写 "@click"（加引号） |
 | 属性无挂载点 | 透传属性出现在不输出标签的节点上 | 节点 "text" 不输出标签，请用 type: el 包裹内容 |
@@ -569,6 +570,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 跨版提示 | `__click` 报错并提示改写 `"@click"`；`x-on-click` 报错并提示 `x-on:click` 或 `@click` |
 | 插值符号 | `{{{ a }}}` / `{{ a }}}` / `{{{ a }}` 报错；相邻的 `{{ a }}{{ b }}` 仍放行 |
 | section 值类型 | `sections` 的值不是数组（字符串/空值）时报可读错误，而不是 PHP TypeError |
+| column 值类型 | `column.content` 不是数组时报可读错误，而不是 PHP TypeError |
 | CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 失败退出码 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
 

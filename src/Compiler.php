@@ -453,6 +453,9 @@ class Compiler
                 $bind = $this->requireString($column, 'bind', $columnPath);
                 $rows[] = '<td' . $columnAttr . '>' . $this->bindValue($as . '.' . $bind, $columnPath) . '</td>';
             } else {
+                if (! is_array($column['content'])) {
+                    $this->error($columnPath . '.content: 必须是节点树数组');
+                }
                 $rows[] = '<td' . $columnAttr . '>' . $this->compileNodes($column['content'], $columnPath . '.content') . '</td>';
             }
         }
