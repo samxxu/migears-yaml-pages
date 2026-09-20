@@ -1,0 +1,24 @@
+title: 用户管理
+layout: layout/main
+sections:
+  title:
+    - type: text
+      text: 用户管理
+  content:
+    - type: heading
+      level: 2
+      text: 用户列表
+    - type: table
+      items: users
+      as: user
+      empty: 暂无数据
+      columns:
+        - label: ID
+          bind: id
+        - label: 姓名
+          bind: name
+        - label: 操作
+          content:
+            - type: link
+              href: /users/{{ user.id }}/edit
+              text: 编辑

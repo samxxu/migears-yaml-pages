@@ -1,0 +1,693 @@
+# migears/yaml-pages
+
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
+
+A declarative YAML page definition tool that compiles `.page.yaml` declarations into miGears Template files (`.tpl.php`), which the template engine then compiles to pure PHP on first render. The YAML declaration is the single source of truth; generated templates are derived artifacts and must not be hand-edited.
+
+## Features
+
+- PHP 8.1+, PSR-4 autoloading, namespace `MiGears\YamlPages`
+- YAML parsing via PECL `ext-yaml` (`pecl install yaml`) — no third-party composer packages
+- Declares page structure, data binding, conditionals (`if`), loops (`each`), form fields, table columns and layout inheritance
+- `{{ path }}` interpolation with auto-escaping — XSS protection inherited from the template engine
+- Compile-time validation of structure, fields, paths and keys — nothing is silently dropped
+- **Attribute passthrough** for front-end frameworks: `"@click"`, `x-on:click`, `v-bind:href`, `wire:click`, `hx-get`, `data-*`, `class`/`id`/`style` are forwarded to the emitted tag
+- Generic `el` node, so wrapper attributes (Alpine's `x-data`) have somewhere to live
+- Built-in components (`card`, `button`, `alert`, `badge`) plus custom components written per miGears Template conventions
+- Deliberately out of scope: business logic, event handling, state management, routing, runtime YAML parsing — those belong to the front-end framework you pair it with
+
+## How It Works
+
+**Two deliberate compilations:**
+
+1. yaml-pages compiles the YAML declaration into `.tpl.php` sugar syntax (`## $expr ##`). The intermediate output stays readable, so each DSL keyword maps visibly to template syntax.
+2. `migears/template`'s `TemplateCompiler` turns that sugar into a pure PHP template (mtime-cached, recompiled only when the template changes). Rendering is plain PHP: the template runs and its variables are output to the browser as HTML. The declaration layer never enters runtime.
+
+The generated `.tpl.php` file is a derived artifact — re-running the compiler overwrites it. Edit the YAML, never the output.
+
+## Installation
+
+```bash
+composer require migears/yaml-pages
+```
+
+Requires PHP 8.1+, the `yaml` extension and `migears/template` ^2.0.
+
+Install the `yaml` extension on macOS:
+
+```bash
+brew install libyaml
+echo "$(brew --prefix libyaml)" | pecl install yaml
+```
+
+On Linux, `pecl install yaml` usually works directly.
+
+Make the built-in components findable by the template engine:
+
+```php
+use MiGears\Template\Template;
+
+$tpl = new Template(__DIR__ . '/views');
+$tpl->addPath('vendor/migears/yaml-pages/components');
+```
+
+Or copy `components/` into your project's template directory.
+
+## Quick Start
+
+Write a page declaration `views/pages/users.page.yaml`:
+
+```yaml
+title: 用户管理
+layout: layout/main
+sections:
+  content:
+    - type: heading
+      level: 2
+      text: 用户列表
+    - type: table
+      items: users
+      as: user
+      empty: 暂无数据
+      columns:
+        - label: ID
+          bind: id
+        - label: 姓名
+          bind: name
+        - label: 操作
+          content:
+            - type: link
+              href: /users/{{ user.id }}/edit
+              text: 编辑
+```
+
+Compile it:
+
+```bash
+php vendor/bin/yaml-pages compile views/pages/users.page.yaml
+```
+
+This produces `views/pages/users.tpl.php`. Render it like any other template:
+
+```php
+echo $tpl->render('pages/users', [
+    'users' => [
+        ['id' => 1, 'name' => 'Alice'],
+        ['id' => 2, 'name' => 'Bob'],
+    ],
+]);
+```
+
+A complete example covering every syntax feature ships in `examples/full-featured.page.yaml`, with a minimal layout in `examples/views/layout/main.php`. Compile it in place and it renders straight away:
+
+```bash
+php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
+```
+
+## YAML Notes
+
+The parser is libyaml (via `ext-yaml`), which follows YAML 1.1. Quote a value when it would otherwise be mis-parsed:
+
+| Case | Wrong | Right |
+|------|-------|-------|
+| Value starts with `{` / `[` | `text: {{ user.name }}` | `text: '{{ user.name }}'` |
+| Value starts with `!` (tag prefix) | `when: !user.hidden` | `when: '!user.hidden'` |
+| Value contains `: ` | `text: 时间: 12:00` | `text: '时间: 12:00'` |
+| Value contains ` #` (comment) | `text: a # b` | `text: 'a # b'` |
+| **Key** starts with `@` or `:` | `@click: go()` | `"@click": go()` |
+
+Also:
+
+- `{{ ... }}` in the *middle* of a value (e.g. `/users/{{ user.id }}/edit`) needs no quotes.
+- `true` / `false` / `yes` / `no` / `on` / `off` are booleans in YAML 1.1 — `required: true` is intentional; quote for a literal string.
+- `level: 2`, `rows: 4` parse as integers, matching the `heading.level` / `textarea.rows` type checks.
+- In double-quoted strings `\n` is a newline; use single quotes for a literal backslash-n.
+- A key containing a colon (`x-on:click:`, `wire:click:`) needs no quotes — a colon not followed by whitespace is not a mapping separator.
+
+## Front-end Framework Integration
+
+Keys on a node fall into three groups:
+
+1. **DSL fields** — consumed by the node itself (`heading.level`, `link.href`, `form.action`), including structural children (`then`, `body`, `fields`, `columns`, `data`, `options`, `content`).
+2. **Forwarded attributes** — emitted on the tag the node produces:
+   - `"@event"` — the Alpine / Vue event shorthand, written as a quoted key
+   - any name containing a colon: `x-on:click`, `x-bind:href`, `v-on:click`, `wire:click`, `on:click`; `":href"` needs quotes
+   - prefixes `x-`, `v-`, `hx-`, `data-`
+   - the HTML hooks `class`, `id`, `style`
+3. **Everything else is a compile error** — treated as a typo, never dropped silently.
+
+Nodes that emit no tag of their own (`text`, `if`, `each`, `component`) reject forwarded attributes; wrap them in `el` instead. The page root likewise accepts only `title` / `layout` / `body` / `sections`.
+
+Forwarded values are HTML-escaped first and interpolated second, so `{{ }}` works inside them (and single quotes stay readable). Scalars are normalised for HTML: `7` → `"7"`, `true` → `"true"`, `x-cloak:` → `x-cloak=""` (the YAML spelling of a valueless attribute); anything non-scalar is an error.
+
+```yaml
+- type: el
+  tag: div
+  x-data: '{ open: false }'
+  class: panel
+  "@click": open = ! open
+  body:
+    - type: text
+      text: 切换
+```
+
+### How this differs from XML
+
+XML attribute names cannot contain `@`, so the XML variant spells it `__click`. YAML writes `"@click"` directly — **there is no `__` mapping here**, and no `<attr>` node either, because a quoted YAML key can express any attribute name. Writing `__click` in YAML fails with a hint to use `"@click"`.
+
+### Framework matrix
+
+| Framework | Key style | Result |
+|-----------|-----------|--------|
+| Alpine | `x-on:click`, `x-bind:href`, `x-data`, `x-show`, `x-cloak:` | works |
+| Alpine | `"@click"` | works (quoted key) |
+| Alpine | `@click` unquoted | fails — YAML scan error; quote it |
+| Alpine | `x-on-click` (hyphen) | rejected — Alpine only has the colon form |
+| Vue | `v-on:click`, `v-bind:href`, `":href"` | works |
+| Vue | `"@click"` | works |
+| htmx | `hx-get`, `hx-trigger` | works |
+| Stimulus | `data-controller`, `data-action` | works |
+| Livewire | `wire:click`, `wire:model.live` | works |
+
+### One owner per region
+
+Server-side and client-side rendering must not both own the same DOM region. Render structure with `each` / `if` / `table` on the server, then hang interaction on top with Alpine — do not also drive that list with `x-for`, or Alpine regenerates it and you get duplicated nodes plus flicker.
+
+## Data Binding
+
+`{{ path }}` interpolates a dot path into an auto-escaped output:
+
+| Path | Compiles to |
+|------|-------------|
+| `{{ users }}` | `## $users ?? '' ##` |
+| `{{ user.name }}` | `## $user['name'] ?? '' ##` |
+| `{{ form.errors.email }}` | `## $form['errors']['email'] ?? '' ##` |
+
+Rules:
+
+- Only `a.b.c` paths — no function calls, no arithmetic, no string literals. Anything else is a compile error.
+- Paths compile to **array access**; normalize Domain entities to arrays at the controller boundary.
+- Only `if.when` takes a leading `!` for negation; a `!` anywhere else (e.g. `each.items`) is a compile error.
+- Conditions and loops fall back with `?? null`, bound text and attributes with `?? ''`.
+- At most two braces per interpolation: `{{{` or `}}}` is a compile error. A third brace slips past the pairing check and would leave stray braces in the rendered output.
+- Literal fields — `layout`, section names, `form.method`, `field.name`, `field.label`, `option` value and text, `table.empty`, `column.label`, `component.name` — are emitted as-is. Writing `{{ }}` there is a compile error, not a silent no-op.
+
+## Node Reference
+
+Every node in `body` / `sections` is an object with a `type` field. Available types: `text`, `heading`, `link`, `if`, `each`, `form`, `table`, `component`. Nested structures (`field`, `column`) are typed by their position — they need no `type`, and a written one must match (`field` / `column`) or compilation fails.
+
+### Page root
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `title` | no | Page title; becomes the `title` section (only with `layout`) |
+| `layout` | no | Layout template name, e.g. `layout/main` |
+| `body` | conditional | Node tree when there is no `layout` |
+| `sections` | conditional | Section name → node tree, required together with `layout` |
+
+`layout` + `sections` and `body` are mutually exclusive.
+
+### text / heading / link
+
+```yaml
+- type: text
+  text: 你好，{{ user.name }}
+- type: heading
+  level: 2
+  text: 用户管理
+- type: link
+  href: /users/{{ user.id }}/edit
+  text: 编辑
+```
+
+- `text` — `text` required; literal output, interpolations auto-escaped
+- `heading` — `text` required, `level` 1–6 (default 1)
+- `link` — `href` and `text` required, `target` optional
+
+### if
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `when` | yes | Path, optional `!` prefix (quote it: `'!user.hidden'`) |
+| `then` | yes | Node tree |
+| `else` | no | Node tree |
+
+### each
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `items` | yes | Path |
+| `as` | no | Loop variable, default `item` |
+| `index` | no | Index variable name |
+| `body` | yes | Node tree |
+
+### form
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `action` | yes | Form action |
+| `method` | no | `post` (default) or `get` |
+| `fields` | yes | Field array |
+
+Fields support these inputs: `text` (default), `password`, `email`, `number`, `textarea`, `select`, `checkbox`, `hidden`, `submit`.
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `name` | yes | Input `name` / `id` |
+| `label` | yes | Label text; button text for `submit` |
+| `input` | no | One of the inputs above |
+| `value` | no | Bound path → `value="## $path ?? '' ##"` |
+| `required` | no | Adds the `required` attribute |
+| `placeholder` | no | text/password/email/number |
+| `options` | select only | `admin: 管理员` mapping |
+| `checked` | checkbox only | Bound path; outputs `checked` when truthy |
+| `rows` | textarea only | Default 4 |
+
+`select` rejects `value` (selected-state binding is out of scope); `options` on a non-select field is a compile error.
+
+### table
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `items` | yes | Path |
+| `as` | no | Row variable, default `row` |
+| `columns` | yes | Column array |
+| `empty` | no | Text shown for an empty list |
+
+Columns: `label` required; exactly one of `bind` (path relative to the row variable, e.g. `id` → `row.id`) or `content` (node tree in row scope).
+
+### component
+
+```yaml
+- type: component
+  name: card
+  data:
+    title: '{{ user.name }}'
+    body: 简介
+```
+
+`name` required, `data` optional. Data values support `{{ path }}` and are compiled to PHP string concatenation.
+
+Interpolated values reach the component **unescaped** — the component template owns escaping, choosing `$this->e()` for text or `$this->raw()` for trusted markup. Pre-escaping here would double-encode anything containing HTML. Among the built-ins, `card.title` / `button.text` / `alert.text` / `badge.text` go through `e()`, while `card.body` uses `raw()`.
+
+Built-in components (plain template files in `components/`, readable and copyable): `card` (`title`, `body`), `button` (`text`, `href`, `type`), `alert` (`type`, `text`), `badge` (`text`, `type`). Custom components are ordinary miGears Template files referenced by name.
+
+### el
+
+```yaml
+- type: el
+  tag: div
+  x-data: '{ open: false }'
+  class: panel
+  body:
+    - type: heading
+      level: 3
+      text: '{{ user.name }}'
+    - type: text
+      text: Body
+```
+
+`tag` required (lowercase HTML tag name); `body` is the child node tree and may be omitted (treated as empty); accepts any forwarded attribute. This is how wrapper attributes such as `x-data` get a home, since `text` / `if` / `each` emit no tag.
+
+## CLI
+
+```bash
+php bin/yaml-pages compile <input> [output-dir] [--check]
+php bin/yaml-pages --help
+```
+
+- `<input>` — a `.page.yaml` file or a directory (processed recursively)
+- `[output-dir]` — defaults to the source directory
+- `--check` — validate only, write nothing
+- `users.page.yaml` → `users.tpl.php`; existing outputs are overwritten unconditionally
+- Exit code: `0` all good, `1` any failure; directory mode continues with the remaining files
+
+## Errors
+
+Compile errors throw `MiGears\YamlPages\Exception\CompileException` with a node path, e.g.:
+
+```
+views/pages/users.page.yaml: sections.content[2].columns[2]: 列同时指定 bind 与 content
+```
+
+The CLI prints errors to stderr with the file name; directory mode keeps going on failure.
+
+## Testing
+
+```bash
+composer test
+```
+
+Unit tests assert exact compiled output; integration tests render the compiled page through the full miGears Template pipeline.
+
+## License
+
+MIT
+
+---
+
+# migears/yaml-pages
+
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
+
+基于 YAML 的声明式页面定义工具：把 `.page.yaml` 页面声明编译为 miGears 模板文件（`.tpl.php`），模板引擎在首次渲染时再将其编译为纯 PHP。YAML 声明是唯一事实标准；生成的模板是派生文件，不应手工修改。
+
+## 特性
+
+- PHP 8.1+，PSR-4 自动加载，命名空间 `MiGears\YamlPages`
+- 解析用 PECL `ext-yaml`（`pecl install yaml`）—— 无 composer 第三方包
+- 声明页面结构、数据绑定、条件显示（`if`）、循环列表（`each`）、表单字段、表格列与 layout 继承
+- `{{ path }}` 插值自动转义 —— XSS 防护由模板引擎承担
+- 编译期校验结构、字段、路径与键，**不静默丢弃任何东西**
+- **属性透传**：`"@click"`、`x-on:click`、`v-bind:href`、`wire:click`、`hx-get`、`data-*`、`class`/`id`/`style` 输出到生成的标签
+- 通用容器 `el`，给 `x-data` 这类包裹层属性一个落点
+- 内置组件（`card`、`button`、`alert`、`badge`），自定义组件按 miGears Template 规范编写
+- 明确不做：业务逻辑、事件处理、状态管理、路由、运行期解析 YAML —— 这些交给你搭配的前端框架
+
+## 工作原理
+
+**刻意两次编译：**
+
+1. yaml-pages 把 YAML 声明编译为 `.tpl.php` 糖语法（`## $expr ##`）。中间产物保持可读，每个 DSL 词汇对应什么模板语法一目了然。
+2. `migears/template` 的 `TemplateCompiler` 把糖编译成纯 PHP 模板（mtime 缓存，仅模板变更后重编一次）。渲染由 PHP 执行：模板运行时把变量以 HTML 形式输出给浏览器，声明层不进入运行期。
+
+生成的 `.tpl.php` 是派生文件——重新编译即覆盖。修改 YAML，不要改产物。
+
+## 安装
+
+```bash
+composer require migears/yaml-pages
+```
+
+要求 PHP 8.1+、`yaml` 扩展与 `migears/template` ^2.0。
+
+macOS 上安装 `yaml` 扩展：
+
+```bash
+brew install libyaml
+echo "$(brew --prefix libyaml)" | pecl install yaml
+```
+
+Linux 上通常直接 `pecl install yaml` 即可。
+
+让模板引擎能找到内置组件：
+
+```php
+use MiGears\Template\Template;
+
+$tpl = new Template(__DIR__ . '/views');
+$tpl->addPath('vendor/migears/yaml-pages/components');
+```
+
+或把 `components/` 拷入项目的模板目录。
+
+## 快速开始
+
+编写页面声明 `views/pages/users.page.yaml`：
+
+```yaml
+title: 用户管理
+layout: layout/main
+sections:
+  content:
+    - type: heading
+      level: 2
+      text: 用户列表
+    - type: table
+      items: users
+      as: user
+      empty: 暂无数据
+      columns:
+        - label: ID
+          bind: id
+        - label: 姓名
+          bind: name
+        - label: 操作
+          content:
+            - type: link
+              href: /users/{{ user.id }}/edit
+              text: 编辑
+```
+
+编译：
+
+```bash
+php vendor/bin/yaml-pages compile views/pages/users.page.yaml
+```
+
+生成 `views/pages/users.tpl.php`。与普通模板一样渲染：
+
+```php
+echo $tpl->render('pages/users', [
+    'users' => [
+        ['id' => 1, 'name' => 'Alice'],
+        ['id' => 2, 'name' => 'Bob'],
+    ],
+]);
+```
+
+覆盖全部语法特性的完整示例见 `examples/full-featured.page.yaml`，配套最小布局在 `examples/views/layout/main.php`。编译到该目录即可直接渲染：
+
+```bash
+php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
+```
+
+## YAML 编写注意
+
+解析层是 libyaml（ext-yaml），遵循 YAML 1.1。以下写法必须引号包裹，否则会被误解析：
+
+| 场景 | 错误写法 | 正确写法 |
+|------|----------|----------|
+| 值以 `{` / `[` 开头 | `text: {{ user.name }}` | `text: '{{ user.name }}'` |
+| 值以 `!` 开头（tag 前缀） | `when: !user.hidden` | `when: '!user.hidden'` |
+| 值内含 `: ` | `text: 时间: 12:00` | `text: '时间: 12:00'` |
+| 值内含 ` #`（注释） | `text: a # b` | `text: 'a # b'` |
+| **键**以 `@` 或 `:` 开头 | `@click: go()` | `"@click": go()` |
+
+其余注意：
+
+- `{{ ... }}` 在**值中间**（如 `/users/{{ user.id }}/edit`）可裸写，无需引号。
+- `true`/`false`/`yes`/`no`/`on`/`off` 在 YAML 1.1 中是布尔值——`required: true` 是故意的布尔语义；若需字面字符串请加引号。
+- `level: 2`、`rows: 4` 解析为整数，与 `heading.level` / `textarea.rows` 的类型校验一致。
+- 双引号字符串中 `\n` 是换行；需要字面 `\n` 时用单引号。
+- 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后紧跟非空白字符即不构成映射分隔。
+
+## 前端框架集成
+
+节点上的键分三类：
+
+1. **DSL 字段** —— 节点自己消费（`heading.level`、`link.href`、`form.action`），含结构性子键（`then`、`body`、`fields`、`columns`、`data`、`options`、`content`）。
+2. **透传属性** —— 输出到该节点生成的标签：
+   - `"@event"` —— Alpine / Vue 的事件简写，写成带引号的键
+   - 带冒号的名字：`x-on:click`、`x-bind:href`、`v-on:click`、`wire:click`、`on:click`；`":href"` 需要引号
+   - 前缀：`x-`、`v-`、`hx-`、`data-`
+   - HTML 钩子：`class`、`id`、`style`
+3. **其余一律编译错误** —— 视为拼写错误，绝不静默丢弃。
+
+不输出标签的节点（`text`、`if`、`each`、`component`）不接受透传属性，用 `el` 包裹即可。页面根同理，只认 `title` / `layout` / `body` / `sections`。
+
+透传值先转义、后插值，所以 `{{ }}` 在属性值里照常可用（单引号也保持可读）。标量按 HTML 属性的形态归一：`7` → `"7"`、`true` → `"true"`、`x-cloak:` → `x-cloak=""`（无值属性的 YAML 写法）；非标量报错。
+
+```yaml
+- type: el
+  tag: div
+  x-data: '{ open: false }'
+  class: panel
+  "@click": open = ! open
+  body:
+    - type: text
+      text: 切换
+```
+
+### 与 XML 版的差异
+
+XML 的属性名装不下 `@`，所以那边用 `__click` 表示 `@click`。YAML 直接写 `"@click"` —— **这里没有 `__` 映射**，也不需要 `<attr>` 节点（引号键可以表达任何属性名）。在 YAML 里写 `__click` 会报错并提示改用 `"@click"`。
+
+### 框架可用性
+
+| 框架 | 键写法 | 结果 |
+|------|--------|------|
+| Alpine | `x-on:click`、`x-bind:href`、`x-data`、`x-show`、`x-cloak:` | 可用 |
+| Alpine | `"@click"` | 可用（引号键） |
+| Alpine | `@click` 裸写 | 失败 —— YAML 扫描错误，必须加引号 |
+| Alpine | `x-on-click`（连字符） | 拒绝 —— Alpine 只有冒号形式 |
+| Vue | `v-on:click`、`v-bind:href`、`":href"` | 可用 |
+| Vue | `"@click"` | 可用 |
+| htmx | `hx-get`、`hx-trigger` | 可用 |
+| Stimulus | `data-controller`、`data-action` | 可用 |
+| Livewire | `wire:click`、`wire:model.live` | 可用 |
+
+### 同一区域只能有一个 owner
+
+服务端渲染与客户端渲染不能同时拥有同一块 DOM。结构交给服务端的 `each` / `if` / `table`，交互挂在 Alpine 上——但不要再对该列表用 `x-for`，否则 Alpine 会用它的模板重新生成，结果是重复节点加闪烁。
+
+## 数据绑定
+
+`{{ path }}` 把点路径插值为自动转义输出：
+
+| 路径 | 编译为 |
+|------|--------|
+| `{{ users }}` | `## $users ?? '' ##` |
+| `{{ user.name }}` | `## $user['name'] ?? '' ##` |
+| `{{ form.errors.email }}` | `## $form['errors']['email'] ?? '' ##` |
+
+规则：
+
+- 仅支持 `a.b.c` 形式的路径——函数调用、算术、字符串字面量一律编译错误。
+- 路径编译为**数组访问**；Domain 实体请在控制器边界转数组。
+- 只有 `if.when` 支持 `!` 前缀取反；其他位置（如 `each.items`）写 `!` 一律编译错误。
+- 条件与循环用 `?? null` 兜底，文本与属性用 `?? ''` 兜底。
+- 插值最多两个花括号：`{{{` 或 `}}}` 属编译错误。第三个花括号会骗过配对计数，把错乱的花括号留在渲染结果里。
+- 字面量字段——`layout`、section 名、`form.method`、`field.name`、`field.label`、`option` 的 value 与显示文本、`table.empty`、`column.label`、`component.name`——原样输出；在其中写 `{{ }}` 属编译错误，不会静默忽略。
+
+## 节点参考
+
+`body` / `sections` 中的每个节点都是带 `type` 字段的对象。可选类型：`text`、`heading`、`link`、`if`、`each`、`form`、`table`、`component`。内嵌结构（`field`、`column`）的类型由位置决定——不必写 `type`；若写出，值必须匹配（`field` / `column`），否则编译失败。
+
+### 页面根
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `title` | 否 | 页面标题，写入 `title` section（仅 layout 时生效） |
+| `layout` | 否 | 继承的布局模板名，如 `layout/main` |
+| `body` | 视情况 | 无 `layout` 时的节点树 |
+| `sections` | 视情况 | section 名 → 节点树，与 `layout` 搭配 |
+
+`layout` + `sections` 与 `body` 互斥。
+
+### text / heading / link
+
+```yaml
+- type: text
+  text: 你好，{{ user.name }}
+- type: heading
+  level: 2
+  text: 用户管理
+- type: link
+  href: /users/{{ user.id }}/edit
+  text: 编辑
+```
+
+- `text` —— `text` 必填；字面输出，插值自动转义
+- `heading` —— `text` 必填，`level` 取值 1–6（默认 1）
+- `link` —— `href`、`text` 必填，`target` 可选
+
+### if
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `when` | 是 | 路径，支持 `!` 前缀（记得加引号：`'!user.hidden'`） |
+| `then` | 是 | 节点树 |
+| `else` | 否 | 节点树 |
+
+### each
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `items` | 是 | 路径 |
+| `as` | 否 | 循环变量，默认 `item` |
+| `index` | 否 | 索引变量名 |
+| `body` | 是 | 节点树 |
+
+### form
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `action` | 是 | 表单提交地址 |
+| `method` | 否 | `post`（默认）或 `get` |
+| `fields` | 是 | 字段数组 |
+
+字段支持以下 input：`text`（默认）、`password`、`email`、`number`、`textarea`、`select`、`checkbox`、`hidden`、`submit`。
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `name` | 是 | 输入框 `name` / `id` |
+| `label` | 是 | 标签文本；`submit` 时为按钮文字 |
+| `input` | 否 | 上述 input 之一 |
+| `value` | 否 | 绑定路径 → `value="## $path ?? '' ##"` |
+| `required` | 否 | 输出 `required` 属性 |
+| `placeholder` | 否 | text/password/email/number |
+| `options` | 仅 select | `admin: 管理员` 形式的映射 |
+| `checked` | 仅 checkbox | 绑定路径；真值时输出 `checked` |
+| `rows` | 仅 textarea | 默认 4 |
+
+`select` 不接受 `value`（选中态绑定不在范围内）；`options` 用在非 select 字段上是编译错误。
+
+### table
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `items` | 是 | 路径 |
+| `as` | 否 | 行变量，默认 `row` |
+| `columns` | 是 | 列数组 |
+| `empty` | 否 | 空列表时显示的文本 |
+
+列：`label` 必填；`bind`（相对行变量的路径，如 `id` → `row.id`）与 `content`（行变量作用域内的节点树）二选一。
+
+### component
+
+```yaml
+- type: component
+  name: card
+  data:
+    title: '{{ user.name }}'
+    body: 简介
+```
+
+`name` 必填，`data` 可选。data 值支持 `{{ path }}` 插值，编译为 PHP 字符串拼接。
+
+插值值以**未转义**形式传给组件——转义由组件模板决定：文本用 `$this->e()`，信任的 HTML 用 `$this->raw()`。编译期预转义会与组件模板的转义叠成双重转义。内置组件中 `card.title` / `button.text` / `alert.text` / `badge.text` 走 `e()`，`card.body` 走 `raw()`。
+
+内置组件（`components/` 下的普通模板文件，可直接阅读复制）：`card`（`title`、`body`）、`button`（`text`、`href`、`type`）、`alert`（`type`、`text`）、`badge`（`text`、`type`）。自定义组件是普通的 miGears Template 文件，按名引用。
+
+### el
+
+```yaml
+- type: el
+  tag: div
+  x-data: '{ open: false }'
+  class: panel
+  body:
+    - type: heading
+      level: 3
+      text: '{{ user.name }}'
+    - type: text
+      text: 正文
+```
+
+`tag` 必填（小写 HTML 标签名）；`body` 为子节点树，可省略（视为空）；接受任意透传属性。由于 `text` / `if` / `each` 自己不输出标签，这是给 `x-data` 这类包裹层属性找落点的唯一方式。
+
+## CLI
+
+```bash
+php bin/yaml-pages compile <input> [output-dir] [--check]
+php bin/yaml-pages --help
+```
+
+- `<input>` —— `.page.yaml` 文件或目录（目录时递归处理）
+- `[output-dir]` —— 缺省与源文件同目录
+- `--check` —— 仅校验，不写文件
+- `users.page.yaml` → `users.tpl.php`；已有产物无条件覆盖
+- 退出码：`0` 全部成功，`1` 任一失败；目录模式出错不中断
+
+## 错误处理
+
+编译错误抛出 `MiGears\YamlPages\Exception\CompileException`，信息带节点路径，例如：
+
+```
+views/pages/users.page.yaml: sections.content[2].columns[2]: 列同时指定 bind 与 content
+```
+
+CLI 将错误输出到 stderr 并附文件名；目录模式继续处理其余文件。
+
+## 测试
+
+```bash
+composer test
+```
+
+单元测试断言编译产物，集成测试把编译产物经 migears/template 完整渲染验证。
+
+## License
+
+MIT

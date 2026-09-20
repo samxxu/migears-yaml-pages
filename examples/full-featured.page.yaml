@@ -1,0 +1,382 @@
+# migears/yaml-pages —— 全特性示例
+# ==================================================================
+# 本文件覆盖 yaml-pages 的全部声明语法，可直接编译并渲染，也可作为
+# 编写自己页面的参考。
+#
+# 结构约定（详见 README「前端框架集成」）：
+#   · 每个节点一个 type 字段，type 决定这个节点是什么
+#   · 字段直接写成键；结构子键是 then/else、body、fields、columns、
+#     data、options、content
+#   · 框架指令与 class/id/style 原样透传到生成的标签
+#
+# 编译（产物落到 examples/views/，与 layout 同处一个模板搜索路径）：
+#     php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
+#
+# 渲染：
+#     $tpl = new Template(__DIR__ . '/examples/views');
+#     $tpl->addPath(__DIR__ . '/components');   // 让内置组件可被找到
+#     echo $tpl->render('full-featured', $data);
+#
+# 注：layout 与 body 互斥，无法在同一文件内同时演示。无 layout 的独立页面
+# 写法见文件末尾注释。
+
+title: 用户管理 · 全特性示例
+layout: layout/main
+sections:
+  content:
+    # ======================================================
+    # 1. heading / text / link —— 标题、文本与链接
+    # ======================================================
+
+    # heading：level 可省略（默认 1），取值 1-6
+    - type: heading
+      text: 页面主体
+    - type: heading
+      level: 2
+      text: 1. 标题、文本与链接
+    - type: heading
+      level: 3
+      text: 三级标题
+
+    # text：元素文本即内容，字面部分原样输出，插值自动转义
+    - type: text
+      text: 这是一段纯文本。
+    - type: text
+      text: 你好，{{ user.name }}！你有 {{ user.messageCount }} 条未读消息。
+
+    # 值以 { 开头必须加引号，否则 YAML 会把它当流式映射
+    - type: text
+      text: '{{ user.name }}（{{ user.age }}）'
+
+    # 需要原样输出的 HTML 直接写——YAML 里 < > & 都不是特殊字符
+    - type: text
+      text: <strong>加粗</strong>、<em>斜体</em>，标签原样输出。
+
+    # 多行文本用 YAML 块标量；|- 表示去掉结尾换行
+    - type: text
+      text: |-
+        第一行
+        第二行
+
+    # link：href 必填，text 是链接文字；target 可选；属性值同样支持插值
+    - type: link
+      href: /users/{{ user.id }}/edit
+      text: 编辑当前用户
+    - type: link
+      href: https://example.com/docs
+      text: 在新窗口打开文档
+      target: _blank
+
+    # ======================================================
+    # 2. if —— 条件显示
+    #    when 必填；then 必填，else 可选
+    # ======================================================
+    - type: heading
+      level: 2
+      text: 2. 条件显示
+
+    - type: if
+      when: user.loggedIn
+      then:
+        - type: text
+          text: 欢迎回来，{{ user.name }}。
+      else:
+        - type: text
+          text: 请先登录。
+
+    # 取反：! 开头必须加引号（YAML 会把 ! 当 tag 前缀）
+    - type: if
+      when: '!user.hidden'
+      then:
+        - type: text
+          text: 该用户资料对访客可见。
+
+    # 多段路径同样可作条件：form.errors.email → form['errors']['email']
+    - type: if
+      when: form.errors.email
+      then:
+        - type: text
+          text: 邮箱错误：{{ form.errors.email }}
+
+    # ======================================================
+    # 3. each —— 循环列表
+    #    items 必填；body 必填；as 默认 item；index 可选
+    # ======================================================
+    - type: heading
+      level: 2
+      text: 3. 循环列表
+
+    # index 拿到的是数组键（0 起）
+    - type: each
+      items: users
+      as: member
+      index: i
+      body:
+        - type: text
+          text: '{{ i }}. {{ member.name }}（{{ member.email }}）'
+
+    # 嵌套 each：内层 items 可引用外层变量
+    - type: each
+      items: groups
+      as: group
+      body:
+        - type: heading
+          level: 4
+          text: '{{ group.name }}'
+        - type: each
+          items: group.members
+          as: member
+          body:
+            - type: text
+              text: '· {{ member.name }}'
+
+    # 循环体里同样可以写 if
+    - type: each
+      items: users
+      as: member
+      body:
+        - type: if
+          when: member.active
+          then:
+            - type: text
+              text: '{{ member.name }} 已启用'
+          else:
+            - type: text
+              text: '{{ member.name }} 已停用'
+
+    # ======================================================
+    # 4. table —— 表格
+    #    items 必填；columns 必填；as 默认 row；empty 可选
+    #    列：label 必填，bind 与 content 二选一
+    # ======================================================
+    - type: heading
+      level: 2
+      text: 4. 表格
+
+    - type: table
+      items: users
+      as: row
+      empty: 暂无数据
+      columns:
+        # bind：相对行变量的路径，如 id → row['id']
+        - label: ID
+          bind: id
+        - label: 姓名
+          bind: name
+        - label: 邮箱
+          bind: email
+        # content：行变量作用域内的节点树，可引用 row.*
+        - label: 操作
+          content:
+            - type: link
+              href: /users/{{ row.id }}/edit
+              text: 编辑
+
+    # ======================================================
+    # 5. form + field —— 表单
+    #    action 必填；method 默认 post；fields 必填
+    #    input：text / password / email / number / textarea
+    #           / select / checkbox / hidden / submit
+    # ======================================================
+    - type: heading
+      level: 2
+      text: 5. 表单
+
+    - type: form
+      action: /users/save
+      method: post
+      fields:
+        # value 绑定路径，required 是布尔，placeholder 仅单行输入框
+        - name: name
+          label: 姓名
+          input: text
+          value: user.name
+          required: true
+          placeholder: 请输入姓名
+        - name: password
+          label: 密码
+          input: password
+          required: true
+        - name: email
+          label: 邮箱
+          input: email
+          value: user.email
+        - name: age
+          label: 年龄
+          input: number
+          value: user.age
+        # textarea：rows 默认 4
+        - name: bio
+          label: 简介
+          input: textarea
+          rows: 6
+          value: user.bio
+        # select：必须提供 options，且不接受 value 绑定
+        - name: role
+          label: 角色
+          input: select
+          options:
+            admin: 管理员
+            editor: 编辑
+            user: 普通用户
+        # checkbox：checked 绑定路径，真值时输出 checked
+        - name: active
+          label: 启用
+          input: checkbox
+          checked: user.active
+        # hidden：不渲染 label
+        - name: csrf
+          label: CSRF 令牌
+          input: hidden
+          value: form.csrf
+        # submit：label 即按钮文字
+        - name: submit
+          label: 保存
+          input: submit
+
+    # method 可省略（默认 post），也可显式指定为 get
+    - type: form
+      action: /users/search
+      method: get
+      fields:
+        - name: q
+          label: 关键词
+          input: text
+          placeholder: 姓名或邮箱
+        - name: go
+          label: 搜索
+          input: submit
+
+    # ======================================================
+    # 6. component —— 组件
+    #    name 必填；data 可选映射，值支持插值
+    # ======================================================
+    - type: heading
+      level: 2
+      text: 6. 组件
+
+    # 无 data：仅传组件名
+    - type: component
+      name: badge
+
+    # card：title / body（body 按原文输出，可含 HTML）
+    - type: component
+      name: card
+      data:
+        title: 卡片标题
+        body: 卡片正文，可含 <em>HTML</em> 片段。
+
+    # button：text / href（可省略，省略时渲染 <button>）/ type
+    - type: component
+      name: button
+      data:
+        text: '编辑 {{ user.name }}'
+        href: /users/{{ user.id }}/edit
+        type: primary
+
+    # alert：type（info/success/warning/danger，默认 info）/ text
+    - type: component
+      name: alert
+      data:
+        type: warning
+        text: 账户将于 {{ user.daysLeft }} 天后过期。
+
+    # data 值支持插值；转义由组件模板决定（这里是 alert 的 e()）
+    - type: component
+      name: alert
+      data:
+        type: success
+        text: 已保存 {{ user.messageCount }} 项设置。
+
+    # ======================================================
+    # 7. el / 属性透传 —— 前端框架集成
+    #    el 是通用容器；框架指令与 class/id/style 原样输出到标签
+    # ======================================================
+    - type: heading
+      level: 2
+      text: 7. 前端框架集成
+
+    # el：通用容器，给 x-data 这类属性一个落点
+    # @click 是 Alpine 的事件简写；键以 @ 开头必须加引号
+    - type: el
+      tag: div
+      x-data: '{ open: false }'
+      class: panel
+      "@click": open = ! open
+      ":class": "open && 'open'"
+      body:
+        - type: text
+          text: 点击切换
+
+    # 透传：带冒号的指令名、x- / v- / hx- / data- 前缀
+    # 键内含冒号（x-on:click:）可裸写；透传值里同样支持插值
+    - type: el
+      tag: ul
+      class: list
+      data-controller: menu
+      body:
+        - type: each
+          items: users
+          as: member
+          body:
+            - type: el
+              tag: li
+              data-id: '{{ member.id }}'
+              x-on:click: select($el)
+              body:
+                - type: text
+                  text: '{{ member.name }}'
+
+    # 表单字段与链接同样接受透传属性
+    - type: form
+      action: /users/search
+      method: get
+      class: search
+      x-on:submit.prevent: submit()
+      fields:
+        - name: q
+          label: 关键词
+          input: text
+          placeholder: 姓名或邮箱
+          x-model.debounce.500ms: kw
+        - name: go
+          label: 搜索
+          input: submit
+
+
+# ==================================================================
+# 附：无 layout 的独立页面模式
+# ==================================================================
+#
+# layout 与 body 互斥：不写 layout 时，页面内容直接放在 body 下。
+# 此时 title 会被忽略（并给出警告），因为独立页面没有可供注入 title
+# section 的布局。
+#
+#   body:
+#     - type: heading
+#       level: 2
+#       text: 独立页面
+#     - type: text
+#       text: 你好，{{ user.name }}。
+#     - type: each
+#       items: users
+#       as: member
+#       body:
+#         - type: text
+#           text: '{{ member.name }}'
+#
+#
+# ==================================================================
+# 附：自定义组件
+# ==================================================================
+#
+# 按 migears/template 的 component 规范自行编写 PHP 模板文件
+# （如 components/my-card.php），再用 name 引用即可，无需注册：
+#
+#   - type: component
+#     name: my-card
+#     data:
+#       heading: '{{ user.name }}'
+#
+# 本示例未启用该片段——它需要你自行提供 my-card.php，否则渲染期找不到
+# 组件文件。内置的 card / button / alert / badge 则随包分发，开箱可用。
