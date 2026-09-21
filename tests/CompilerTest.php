@@ -845,7 +845,7 @@ sections:
     {
         $this->expectError(
             "layout: layout/main\nsections:\n  content: 不是数组",
-            'section 的值必须是节点树数组'
+            'sections.content: 必须是节点树数组，收到 string'
         );
     }
 
@@ -853,7 +853,7 @@ sections:
     {
         $this->expectError(
             "layout: layout/main\nsections:\n  content:",
-            'section 的值必须是节点树数组'
+            'sections.content: 必须是节点树数组，收到 NULL'
         );
     }
 
@@ -872,6 +872,57 @@ sections:
         $this->expectError(
             "body:\n  - type: table\n    items: u\n    columns:\n      - label: A\n        content:\n          type: text\n          text: x",
             'content: 必须是节点树数组（列表）'
+        );
+    }
+
+    public function testBodyMustBeNodeList(): void
+    {
+        $this->expectError('body: 不是数组', 'body: 必须是节点树数组，收到 string');
+        $this->expectError("body:\n  type: text\n  text: x", 'body: 必须是节点树数组（列表）');
+    }
+
+    public function testRootFieldsAreTypeChecked(): void
+    {
+        $this->expectError("layout:\n  - layout/main\nsections: {}", 'page: layout 必须是字符串，收到 array');
+        $this->expectError(
+            "layout: layout/main\nsections: 不是映射",
+            'page: sections 必须是 section 名到节点树的映射，收到 string'
+        );
+    }
+
+    public function testStructuralChildrenMustBeNodeLists(): void
+    {
+        $this->expectError(
+            "body:\n  - type: if\n    when: a\n    then:\n      type: text\n      text: x",
+            'then: 必须是节点树数组（列表）'
+        );
+        $this->expectError(
+            "body:\n  - type: each\n    items: u\n    body:\n      type: text\n      text: x",
+            'body: 必须是节点树数组（列表）'
+        );
+    }
+
+    public function testFormFieldsAndTableColumnsMustBeLists(): void
+    {
+        $this->expectError(
+            "body:\n  - type: form\n    action: /s\n    fields:\n      name: a",
+            'fields: 必须是字段数组（列表）'
+        );
+        $this->expectError(
+            "body:\n  - type: table\n    items: u\n    columns:\n      label: A\n      bind: id",
+            'columns: 必须是列数组（列表）'
+        );
+    }
+
+    public function testFieldValueTypesAreChecked(): void
+    {
+        $this->expectError(
+            "body:\n  - type: form\n    action: /s\n    fields:\n      - name: a\n        label: A\n        required: 'true'",
+            'required 必须是布尔值，收到 string'
+        );
+        $this->expectError(
+            "body:\n  - type: form\n    action: /s\n    fields:\n      - name: s\n        label: S\n        input: select\n        options:\n          a:\n            - x",
+            'option "a" 的文本必须是字符串，收到 array'
         );
     }
 

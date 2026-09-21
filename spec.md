@@ -52,7 +52,7 @@ yaml-pages 是 miGears 框架的可选配套模块：一种基于 YAML 的声明
 
 ### 3.3 极轻量
 
-实现规模保持在同一量级（本包解析层约 75 行——编译逻辑全部在 migears/pages 共享层约 900 行；CLI 约 110 行，组件为纯模板 PHP 文件）。任何让实现显著膨胀的特性都拒绝。
+实现规模保持在同一量级（本包解析层约 75 行——编译逻辑全部在 migears/pages 共享层约 950 行；CLI 约 110 行，组件为纯模板 PHP 文件）。任何让实现显著膨胀的特性都拒绝。
 
 ### 3.4 编译即校验
 
@@ -505,8 +505,12 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | 内嵌结构类型错误 | field/column 的 type 与位置不符 | type 必须是 "field" |
 | 未知键 | 既非该节点的 DSL 字段，也不在透传白名单 | 未知属性 "levl" |
 | 花括号错乱 | 插值出现 `{{{` 或 `}}}` | 插值符号不能连续三个花括号 |
-| section 值类型错误 | `sections` 的某个值不是节点树数组 | sections.content: section 的值必须是节点树数组 |
-| column 值类型错误 | `column.content` 不是节点树数组，或写成单个节点映射（未用 `-` 列表包裹） | columns[0].content: 必须是节点树数组（列表），当前是单个节点映射 |
+| 根字段类型错误 | `layout` / `title` 不是字符串，`sections` 不是映射 | page: layout 必须是字符串，收到 array |
+| 列表形态错误 | 节点树（`then` / `else` / `body` / `content` / `sections` 的值）或 `fields` / `columns` 被写成映射 | sections.content: 必须是节点树数组（列表），当前是键值映射；请用 [ ] 包成列表 |
+| section 值类型错误 | `sections` 的某个值不是节点树数组（字符串 / 空值） | sections.content: 必须是节点树数组，收到 NULL |
+| column 值类型错误 | `column.content` 不是节点树数组，或写成单个节点映射（未用 `-` 列表包裹） | columns[0].content: 必须是节点树数组（列表），当前是键值映射 |
+| required 类型错误 | `field.required` 不是布尔（如带引号的 `'true'`） | required 必须是布尔值，收到 string |
+| option 文本类型错误 | `option` 的显示文本不是字符串 | option "a" 的文本必须是字符串，收到 array |
 | 连字符指令名 | `x-on-*` / `x-bind-*` / `x-transition-*`（Alpine 只有冒号形式） | 请写 "x-on:click" 或 "@click" |
 | `__` 误用 | `__event` 是 XML 版的写法 | YAML 里直接写 "@click"（加引号） |
 | 属性无挂载点 | 透传属性出现在不输出标签的节点上 | 节点 "text" 不输出标签，请用 type: el 包裹内容 |
@@ -560,8 +564,8 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 结构 | heading 各级、越界 level 报错；link href/text 插值；非法 target |
 | 条件 | if then / if then+else / `!` 取反 / when 缺失报错 |
 | 循环 | each 基础 / index / 嵌套 / items 缺失报错 |
-| 表单 | 各 input 枚举 / select options / checkbox checked / submit / 非法枚举 / select 缺 options / options 用在不支持的 input |
-| 表格 | bind 列 / content 列 / empty / as 默认与自定义 / bind+content 同存报错 / columns 缺失报错 |
+| 表单 | 各 input 枚举 / select options / checkbox checked / submit / 非法枚举 / select 缺 options / options 用在不支持的 input / method 非字符串报类型错误且不泄漏 PHP 警告 / required 非布尔 / option 文本非字符串 |
+| 表格 | bind 列 / content 列 / empty / as 默认与自定义 / bind+content 同存报错 / columns 缺失报错 / columns 写成映射报错 |
 | 布局 | layout+sections / body 独立 / 两者同存报错 / 双缺失报错 / title section |
 | 组件 | 无 data / data 插值（PHP 上下文拼接）/ data 字面量 |
 | 绑定 | 路径文法边界（非法字符、空段、`!` 只允许 when） |
@@ -576,6 +580,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 插值符号 | `{{{ a }}}` / `{{ a }}}` / `{{{ a }}` 报错；相邻的 `{{ a }}{{ b }}` 仍放行 |
 | section 值类型 | `sections` 的值不是数组（字符串/空值）时报可读错误，而不是 PHP TypeError |
 | column 值类型 | `column.content` 不是数组、或写成单个节点映射时报可读错误，而不是 PHP TypeError 或 `content[type]: 节点必须是对象` |
+| 根与列表形态 | `body` 非数组或写成单个映射、`layout` 非字符串、`sections` 非映射；`then` / `each.body` / `fields` / `columns` 写成映射时报可读错误 |
 | CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 失败退出码 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
 
