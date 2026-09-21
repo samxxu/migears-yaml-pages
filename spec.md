@@ -498,6 +498,7 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | 结构错误 | 顶层规则违反 | 同时指定 body 与 sections |
 | 未知节点 | type 不在词表 | 未知节点类型 |
 | 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | if 缺 when；level 为 7 |
+| method 类型错误 | `form.method` 不是字符串（校验先于任何强转，不泄漏 PHP 警告） | method 必须是字符串 "get" 或 "post"，收到 array |
 | 路径错误 | 插值/路径文法不匹配 | 非法表达式 |
 | 上下文错误 | bind/content 互斥等 | column 同时含 bind 与 content |
 | 字面量错误 | 字面量字段写了 `{{ }}` | "empty" 是字面量字段，不支持 {{ }} 插值 |
@@ -505,7 +506,7 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | 未知键 | 既非该节点的 DSL 字段，也不在透传白名单 | 未知属性 "levl" |
 | 花括号错乱 | 插值出现 `{{{` 或 `}}}` | 插值符号不能连续三个花括号 |
 | section 值类型错误 | `sections` 的某个值不是节点树数组 | sections.content: section 的值必须是节点树数组 |
-| column 值类型错误 | `column.content` 不是节点树数组 | columns[0].content: 必须是节点树数组 |
+| column 值类型错误 | `column.content` 不是节点树数组，或写成单个节点映射（未用 `-` 列表包裹） | columns[0].content: 必须是节点树数组（列表），当前是单个节点映射 |
 | 连字符指令名 | `x-on-*` / `x-bind-*` / `x-transition-*`（Alpine 只有冒号形式） | 请写 "x-on:click" 或 "@click" |
 | `__` 误用 | `__event` 是 XML 版的写法 | YAML 里直接写 "@click"（加引号） |
 | 属性无挂载点 | 透传属性出现在不输出标签的节点上 | 节点 "text" 不输出标签，请用 type: el 包裹内容 |
@@ -574,7 +575,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 跨版提示 | `__click` 报错并提示改写 `"@click"`；`x-on-click` 报错并提示 `x-on:click` 或 `@click` |
 | 插值符号 | `{{{ a }}}` / `{{ a }}}` / `{{{ a }}` 报错；相邻的 `{{ a }}{{ b }}` 仍放行 |
 | section 值类型 | `sections` 的值不是数组（字符串/空值）时报可读错误，而不是 PHP TypeError |
-| column 值类型 | `column.content` 不是数组时报可读错误，而不是 PHP TypeError |
+| column 值类型 | `column.content` 不是数组、或写成单个节点映射时报可读错误，而不是 PHP TypeError 或 `content[type]: 节点必须是对象` |
 | CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 失败退出码 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
 

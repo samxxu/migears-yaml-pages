@@ -865,6 +865,16 @@ sections:
         );
     }
 
+    public function testColumnContentBareNodeMapRejected(): void
+    {
+        // YAML invites writing one node as a mapping; without the list wrapper
+        // it is still an array, so the failure must name the missing list.
+        $this->expectError(
+            "body:\n  - type: table\n    items: u\n    columns:\n      - label: A\n        content:\n          type: text\n          text: x",
+            'content: 必须是节点树数组（列表）'
+        );
+    }
+
     private function compile(string $yaml): string
     {
         return $this->compiler->compileSource($yaml);
