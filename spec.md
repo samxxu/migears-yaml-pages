@@ -52,7 +52,7 @@ yaml-pages 是 miGears 框架的可选配套模块：一种基于 YAML 的声明
 
 ### 3.3 极轻量
 
-实现规模保持在同一量级（本包解析层约 75 行——编译逻辑全部在 migears/pages 共享层约 950 行；CLI 约 110 行，组件为纯模板 PHP 文件）。任何让实现显著膨胀的特性都拒绝。
+实现规模保持在同一量级（本包解析层约 80 行——编译逻辑全部在 migears/pages 共享层约 1050 行；CLI 约 110 行，组件为纯模板 PHP 文件）。任何让实现显著膨胀的特性都拒绝。
 
 ### 3.4 编译即校验
 
@@ -180,7 +180,7 @@ PHP 上下文绝不能输出 `## ##` 糖——它会被 TemplateCompiler 二次�
 
 插值只在这两种上下文生效。其余字段是**字面量字段**：`layout`、section 名、`form.method`、`field.name`、`field.label`、`option` 的 value 与显示文本、`table.empty`、`column.label`、`component.name`。这些字段原样输出，在其中写 `{{ }}` 不生效，属编译错误（不再静默忽略）。
 
-### 5.3 非法表达式
+### 5.3 非法路径与插值符号
 
 任何 `{{ ... }}` 内不符合路径文法的内容（函数调用、算术、字符串字面量、嵌套插值）都是编译错误，带节点路径上报。
 
@@ -233,7 +233,7 @@ body/sections 中的每个节点必须有 `type` 字段。共 9 种节点 + 2 �
   text: 编辑
 ```
 
-`href`、`text` 必填，均支持插值（插值自动转义，属性上下文安全）。`target` 可选。
+`href`、`text` 必填，均支持插值（插值自动转义，属性上下文安全）。`target` 可选、支持插值，取值不校验——HTML 允许 `_blank` 之外的命名目标，枚举白名单会误杀合法用法。
 
 ### 6.4 if
 
@@ -324,14 +324,16 @@ body/sections 中的每个节点必须有 `type` 字段。共 9 种节点 + 2 �
 | `name` | string | 是 | 字段名（`name` / `id` 属性） |
 | `label` | string | 是 | 标签文本；`submit` 类型时为按钮文字 |
 | `input` | enum | 否 | 见下，默认 `text` |
-| `value` | path | 否 | 绑定值，编译为 `value="## $path ?? '' ##"` |
-| `required` | bool | 否 | 默认 false，加 `required` 属性 |
-| `placeholder` | string | 否 | 仅 text/password/email/number |
+| `value` | path | 否 | 绑定值，编译为 `value="## $path ?? '' ##"`；不支持 `submit`（按钮文字用 `label`） |
+| `required` | bool | 否 | 默认 false；在支持该属性的 input 上加 `required`，`hidden` / `submit` 上写 true 属编译错误 |
+| `placeholder` | string | 否 | 仅 text/password/email/number；其他 input 上属编译错误 |
 | `options` | object | 仅 select | `admin: 管理员` 形式的映射 |
-| `checked` | path | 仅 checkbox | 真值时输出 `checked` 属性 |
-| `rows` | int | 仅 textarea | 默认 4 |
+| `checked` | path | 仅 checkbox | 真值时输出 `checked` 属性；其他 input 上属编译错误 |
+| `rows` | int | 仅 textarea | 默认 4；其他 input 上属编译错误 |
 
 `input` 枚举：`text`、`password`、`email`、`number`、`textarea`、`select`、`checkbox`、`hidden`、`submit`。非法枚举即编译错误。`select` 缺 `options`、`options` 用在不支持的 input 上、`select` 上使用 `value`，均编译错误。
+
+字段的**使用范围**同样是硬约束，越界即编译错误（这些字段此前会被静默丢弃）：`placeholder` 仅 text/password/email/number、`checked` 仅 checkbox、`rows` 仅 textarea、`value` 不支持 submit、`required` 仅 text/password/email/number/textarea/select/checkbox。`required` 为真时在 select / textarea / checkbox 上同样输出 `required` 属性。
 
 `field` 是内嵌结构：不必写 `type`（位置即类型，与 XML 版 `<field>` 元素名等价）；若写出 `type`，值必须是 `field`，否则编译错误。`name`、`label`、`options` 的 value 与文本是字面量字段，不支持 `{{ }}` 插值。
 
@@ -450,13 +452,13 @@ body/sections 中的每个节点必须有 `type` 字段。共 9 种节点 + 2 �
 - `card` — 卡片：`title`、`body`
 - `button` — 按钮：`text`、`href`（可选，无 href 时渲染 `<button>`）、`type`（默认 `default`，可选 `primary`）
 - `alert` — 提示条：`type`（`info`/`success`/`warning`/`danger`，默认 `info`）、`text`
-- `badge` — 标签：`text`、`type`（同 alert）
+- `badge` — 标签：`text`、`type`（与 alert 同名的字段，默认 `default`；取值原样拼进 class，不做枚举校验）
 
 内置组件文件内容为普通 miGears/template 组件（`$this->e()` 输出），用户可直接阅读、复制改造。
 
-**自定义组件**：用户按 migears/template 的 component 规范自行编写 PHP 模板文件（如 `components/my-card.php`），在 YAML 中 `- type: component, name: my-card` 引用。无需注册，`name` 即模板名。
+**自定义组件**：用户按 migears/template 的 component 规范自行编写 PHP 模板文件——`.php` 为原生写法，`.tpl.php` 为 `## ##` 糖语法（`## $expr ##` 转义、`### $expr ###` 原样输出，且会经 TemplateCompiler 落一份编译缓存；`.tpl.php` 优先于同名 `.php`）——如 `components/my-card.php`，在 YAML 中 `- type: component, name: my-card` 引用。无需注册，`name` 即模板名。本包自带一个可运行的自定义组件示例 `examples/components/my-card.php`，由 `examples/full-featured.page.yaml` 按名引用。
 
-运行期组装：页面模板需能找到组件文件。README 说明通过 `$tpl->addPath()` 将包内 `components/` 目录加入模板搜索路径，或拷贝到项目模板目录。
+运行期组装：页面模板需能找到组件文件。README 说明通过 `$tpl->addPath()` 将包内 `components/` 目录加入模板搜索路径，或拷贝到项目模板目录。解析规则由 migears/template 的 `findTemplate()` 决定：先 `<path>/<name>.tpl.php`、再 `<path>/<name>.php`（`.tpl.php` 那一轮遍历完全部路径才轮到 `.php`，故糖语法文件优先），路径按 `addPath()` 逆序搜索、后加的目录先命中——同名文件因此可覆盖内置组件（主题覆盖）；`name` 可以是子目录路径（`admin/table` 命中 `<path>/admin/table.php`）；文件缺失编译期不报错，渲染时才抛 `Component not found`。
 
 ## 8. CLI
 
@@ -495,11 +497,11 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 |------|------|------|
 | YAML 语法错误 | `yaml_parse` 失败（返回 false）+ 捕获解析警告 | YAML 语法错误: ... |
 | 根类型错误 | 根不是映射 | YAML 根必须是映射（页面对象） |
-| 结构错误 | 顶层规则违反 | 同时指定 body 与 sections |
+| 结构错误 | 顶层规则违反 | 同时指定 layout 与 body |
 | 未知节点 | type 不在词表 | 未知节点类型 |
 | 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | if 缺 when；level 为 7 |
 | method 类型错误 | `form.method` 不是字符串（校验先于任何强转，不泄漏 PHP 警告） | method 必须是字符串 "get" 或 "post"，收到 array |
-| 路径错误 | 插值/路径文法不匹配 | 非法表达式 |
+| 路径错误 | 插值/路径文法不匹配 | 非法路径 "user..name" |
 | 上下文错误 | bind/content 互斥等 | column 同时含 bind 与 content |
 | 字面量错误 | 字面量字段写了 `{{ }}` | "empty" 是字面量字段，不支持 {{ }} 插值 |
 | 内嵌结构类型错误 | field/column 的 type 与位置不符 | type 必须是 "field" |
@@ -524,13 +526,13 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 
 ```
 migears-yaml-pages/
-├── composer.json            name: migears/yaml-pages; require: php >=8.1, ext-yaml, migears/pages ^2.0
+├── composer.json            name: migears/yaml-pages; require: php ^8.1, ext-yaml, migears/pages ^2.0
 ├── README.md                双语（中英）、架构、安装、快速开始、YAML 参考、错误处理、测试说明
 ├── LICENSE
 ├── bin/
 │   └── yaml-pages           CLI 入口
 ├── src/
-│   ├── Compiler.php         YAML 解析层（YAML → 数组 IR，约 75 行），继承 migears/pages 的共享编译器
+│   ├── Compiler.php         YAML 解析层（YAML → 数组 IR，约 80 行），继承 migears/pages 的共享编译器
 │   └── Exception/
 │       └── CompileException.php
 ├── components/              内置组件模板
@@ -540,17 +542,21 @@ migears-yaml-pages/
 │   └── badge.php
 ├── examples/                全特性示例（可编译可渲染）
 │   ├── full-featured.page.yaml  覆盖全部声明语法
-│   └── views/layout/main.php    配套最小布局
+│   ├── views/layout/main.php    配套最小布局
+│   └── components/my-card.php   自定义组件示例，被 full-featured.page.yaml 按名引用
 └── tests/
     ├── CompilerTest.php
     ├── CliTest.php
     ├── IntegrationTest.php
+    ├── BundledComponentsTest.php   跨包副本一致性（同仓检出时校验，独立安装时跳过）
     └── fixtures/
         ├── pages/           .page.yaml 输入样例
         └── views/           集成测试用布局
 ```
 
 composer 依赖说明：运行期实际执行的是生成的模板与内置组件，均依赖 migears/template；编译期依赖 migears/pages 的共享编译器，故设为 `require`（pages 包自身声明 migears/template）。解析层使用 PECL ext-yaml 的 `yaml_parse`（`pecl install yaml`），无 composer 第三方包。
+
+复制说明：`components/*.php` 与 `bin/yaml-pages` 与另一前端 `migears/xml-pages` 逐字相同（四个内置组件 byte 级一致）。这是刻意接受的代价——组件必须随包分发才能被 `addPath` 找到，CLI 依赖各自的解析扩展——但改动其中一处（如 badge 的默认 type）必须同步另一处，两侧的组件清单与测试也需一起核对。`tests/BundledComponentsTest.php` 把这条约束变成可执行检查：同仓检出时逐字比对组件清单与内容，独立安装（兄弟包不存在）时跳过。
 
 ## 11. 测试计划（TDD）
 
@@ -561,7 +567,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 分组 | 用例 |
 |------|------|
 | 文本 | text 纯文本 / 单插值 / 多插值 / 多行 |
-| 结构 | heading 各级、越界 level 报错；link href/text 插值；非法 target |
+| 结构 | heading 各级、越界 level 报错；link href/text 插值 |
 | 条件 | if then / if then+else / `!` 取反 / when 缺失报错 |
 | 循环 | each 基础 / index / 嵌套 / items 缺失报错 |
 | 表单 | 各 input 枚举 / select options / checkbox checked / submit / 非法枚举 / select 缺 options / options 用在不支持的 input / method 非字符串报类型错误且不泄漏 PHP 警告 / required 非布尔 / option 文本非字符串 |
@@ -583,6 +589,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 根与列表形态 | `body` 非数组或写成单个映射、`layout` 非字符串、`sections` 非映射；`then` / `each.body` / `fields` / `columns` 写成映射时报可读错误 |
 | CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 失败退出码 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
+| 副本一致性 | 内置组件与 `migears/xml-pages` 逐字相同（同仓检出时校验，独立安装时跳过） |
 
 ## 12. 明确不做（后续候选）
 

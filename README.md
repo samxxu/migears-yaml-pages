@@ -194,7 +194,7 @@ Rules:
 
 ## Node Reference
 
-Every node in `body` / `sections` is an object with a `type` field. Available types: `text`, `heading`, `link`, `if`, `each`, `form`, `table`, `component`. Nested structures (`field`, `column`) are typed by their position — they need no `type`, and a written one must match (`field` / `column`) or compilation fails.
+Every node in `body` / `sections` is an object with a `type` field. Available types: `text`, `heading`, `link`, `if`, `each`, `form`, `table`, `el`, `component`. Nested structures (`field`, `column`) are typed by their position — they need no `type`, and a written one must match (`field` / `column`) or compilation fails.
 
 ### Page root
 
@@ -291,6 +291,50 @@ Columns: `label` required; exactly one of `bind` (path relative to the row varia
 Interpolated values reach the component **unescaped** — the component template owns escaping, choosing `$this->e()` for text or `$this->raw()` for trusted markup. Pre-escaping here would double-encode anything containing HTML. Among the built-ins, `card.title` / `button.text` / `alert.text` / `badge.text` go through `e()`, while `card.body` uses `raw()`.
 
 Built-in components (plain template files in `components/`, readable and copyable): `card` (`title`, `body`), `button` (`text`, `href`, `type`), `alert` (`type`, `text`), `badge` (`text`, `type`). Custom components are ordinary miGears Template files referenced by name.
+
+### Custom components
+
+Write the file, make its directory findable, reference it by name — there is no registry, and the file's existence is not checked at compile time. `examples/components/my-card.php` is a runnable one, referenced from `examples/full-featured.page.yaml`:
+
+```php
+// components/my-card.php
+<div class="my-card">
+    <h3><?= $this->e($title ?? '') ?></h3>
+    <div><?= $this->raw((string) ($body ?? '')) ?></div>
+</div>
+```
+
+```php
+$tpl = new Template(__DIR__ . '/views');
+$tpl->addPath(__DIR__ . '/components');                 // your own components
+$tpl->addPath('vendor/migears/yaml-pages/components');  // the built-ins
+```
+
+```yaml
+- type: component
+  name: my-card
+  data:
+    title: '{{ user.name }}'
+    body: '正文，可含 <em>HTML</em>。'
+```
+
+A `.tpl.php` component works the same way — the engine compiles the `## ##` sugar on first render:
+
+```php
+// components/my-card.tpl.php
+<div class="my-card">
+    <h3>## $title ?? '' ##</h3>
+    <div>### $body ?? '' ###</div>
+</div>
+```
+
+`## $expr ##` compiles to `$this->e($expr)` and `### $expr ###` to `$this->raw($expr)` — raw is one extra `#`, not a different function. So `## $this->raw($expr) ##` does **not** give raw output: the sugar wraps it in `e()` anyway and quietly escapes, which is why the built-ins above are plain PHP. Every `.tpl.php` also leaves a compiled artifact in the template cache directory (writable; system temp by default) and wins over a same-named `.php`, while plain PHP output is never auto-escaped (`<?= $title ?>` prints raw) — the sugar's one real safety advantage.
+
+- The name is a path relative to a registered directory, so sub-directories work: `name: admin/table` resolves `<path>/admin/table.php`. The same file has two legal names depending on which directory you registered — `card` when `components/` itself is a path, `components/card` when the package root is.
+- `addPath()` searches the directory added **last** first, so a same-named file in a later path overrides an earlier one — that is how a built-in component gets restyled or replaced.
+- A component receives only its `data` keys — page variables are not passed down — and those values are strings.
+- The `component` node emits no tag of its own, so `class` or a framework directive cannot sit on it; wrap it in `el`.
+- A missing component is not caught at compile time; rendering throws `Component not found: <name>`.
 
 ### el
 
@@ -542,7 +586,7 @@ XML 的属性名装不下 `@`，所以那边用 `__click` 表示 `@click`。YAML
 
 ## 节点参考
 
-`body` / `sections` 中的每个节点都是带 `type` 字段的对象。可选类型：`text`、`heading`、`link`、`if`、`each`、`form`、`table`、`component`。内嵌结构（`field`、`column`）的类型由位置决定——不必写 `type`；若写出，值必须匹配（`field` / `column`），否则编译失败。
+`body` / `sections` 中的每个节点都是带 `type` 字段的对象。可选类型：`text`、`heading`、`link`、`if`、`each`、`form`、`table`、`el`、`component`。内嵌结构（`field`、`column`）的类型由位置决定——不必写 `type`；若写出，值必须匹配（`field` / `column`），否则编译失败。
 
 ### 页面根
 
@@ -639,6 +683,50 @@ XML 的属性名装不下 `@`，所以那边用 `__click` 表示 `@click`。YAML
 插值值以**未转义**形式传给组件——转义由组件模板决定：文本用 `$this->e()`，信任的 HTML 用 `$this->raw()`。编译期预转义会与组件模板的转义叠成双重转义。内置组件中 `card.title` / `button.text` / `alert.text` / `badge.text` 走 `e()`，`card.body` 走 `raw()`。
 
 内置组件（`components/` 下的普通模板文件，可直接阅读复制）：`card`（`title`、`body`）、`button`（`text`、`href`、`type`）、`alert`（`type`、`text`）、`badge`（`text`、`type`）。自定义组件是普通的 miGears Template 文件，按名引用。
+
+### 自定义组件
+
+写文件、让目录可被找到、按名引用——没有注册表，编译期也不检查文件是否存在。`examples/components/my-card.php` 就是一个可直接运行的自定义组件，由 `examples/full-featured.page.yaml` 引用：
+
+```php
+// components/my-card.php
+<div class="my-card">
+    <h3><?= $this->e($title ?? '') ?></h3>
+    <div><?= $this->raw((string) ($body ?? '')) ?></div>
+</div>
+```
+
+```php
+$tpl = new Template(__DIR__ . '/views');
+$tpl->addPath(__DIR__ . '/components');                 // 你自己的组件
+$tpl->addPath('vendor/migears/yaml-pages/components');  // 包内置组件
+```
+
+```yaml
+- type: component
+  name: my-card
+  data:
+    title: '{{ user.name }}'
+    body: '正文，可含 <em>HTML</em>。'
+```
+
+`.tpl.php` 组件同样可用——引擎会在首次渲染时把 `## ##` 糖编译成 PHP：
+
+```php
+// components/my-card.tpl.php
+<div class="my-card">
+    <h3>## $title ?? '' ##</h3>
+    <div>### $body ?? '' ###</div>
+</div>
+```
+
+`## $expr ##` 编译为 `$this->e($expr)`，`### $expr ###` 编译为 `$this->raw($expr)`——raw 是多一个 `#`，不是换一个函数；所以 `## $this->raw($expr) ##` **不会**原样输出，糖会再包一层 `e()` 静默转义，上面几个内置组件因此在原生 PHP 里写 `$this->raw()`。另外每个 `.tpl.php` 会在模板缓存目录留一份编译产物（目录需可写，未配置时是系统临时目录），且同名时优先于 `.php`；而原生 PHP 的输出永不自动转义（`<?= $title ?>` 原样输出），这是糖唯一的实质安全优势。
+
+- 名字是相对某个已注册目录的路径，所以子目录可以直接用：`name: admin/table` 命中 `<path>/admin/table.php`。同一份文件会因你注册了哪个目录而有两个合法名字——注册 `components/` 本身时它叫 `card`，注册包根时它叫 `components/card`。
+- `addPath()` 是「后加的目录先被搜索」，所以同名文件放进后注册的目录即可覆盖先前的——内置组件就是这样改造或替换的。
+- 组件只拿到自己的 `data` 键（页面的其它变量不会透传进来），且这些值都是字符串。
+- `component` 节点自身不输出标签，挂不上 `class` 或框架指令，需要外层属性时用 `el` 包裹。
+- 组件缺失不会在编译期报错，渲染时才抛 `Component not found: <name>`。
 
 ### el
 
