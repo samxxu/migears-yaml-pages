@@ -45,7 +45,12 @@ class Compiler extends PagesCompiler
         if ($page === false || $page === null) {
             throw new CompileException('YAML 语法错误' . ($error !== null ? ': ' . $error : ''));
         }
-        if (! is_array($page)) {
+        // A YAML sequence parses into a PHP list, which is an array too: without
+        // the list test it slips past this guard and fails deeper as
+        // `page: 未知字段 "0"` — naming a field the author never wrote. `[]` is
+        // the empty mapping as much as the empty sequence, so it is left to the
+        // "缺少页面内容" path.
+        if (! is_array($page) || ($page !== [] && array_is_list($page))) {
             throw new CompileException('YAML 根必须是映射（页面对象）');
         }
 

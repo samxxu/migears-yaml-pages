@@ -779,6 +779,16 @@ sections:
         $this->assertSame('<div x-ref="anchor"></div>', $out);
     }
 
+    public function testElBodyKeyLeftEmptyRejected(): void
+    {
+        // YAML invites leaving a key empty; a body that is present but null is a
+        // mistake, not "no children" — drop the key, or write body: [].
+        $this->expectError(
+            "body:\n  - type: el\n    tag: div\n    body:\n",
+            'body: 必须是节点树数组，收到 NULL'
+        );
+    }
+
     public function testElMissingTag(): void
     {
         $this->expectError("body:\n  - type: el\n    class: x\n    body: []", '缺少 string 字段 "tag"');
@@ -923,6 +933,56 @@ sections:
         $this->expectError(
             "body:\n  - type: form\n    action: /s\n    fields:\n      - name: s\n        label: S\n        input: select\n        options:\n          a:\n            - x",
             'option "a" 的文本必须是字符串，收到 array'
+        );
+    }
+
+    public function testRootSequenceRejected(): void
+    {
+        // A YAML sequence is a list in PHP, so it used to slip past the root
+        // guard and fail deeper as `未知字段 "0"`.
+        $this->expectError("- type: text\n  text: hi\n", 'YAML 根必须是映射（页面对象）');
+    }
+
+    public function testComponentDataMustBeAMapOfLiteralKeys(): void
+    {
+        $this->expectError(
+            "body:\n  - type: component\n    name: card\n    data:\n      '{{ user.id }}': x\n",
+            '"data 键" 是字面量字段，不支持 {{ }} 插值'
+        );
+        $this->expectError(
+            "body:\n  - type: component\n    name: card\n    data:\n      - x\n      - y\n",
+            'component 的 data 必须是「键 => 字符串」的映射（键值映射），当前是列表'
+        );
+    }
+
+    public function testSectionsMustBeAMap(): void
+    {
+        $this->expectError(
+            "layout: layout/main\nsections:\n  - type: text\n    text: x\n",
+            'page: sections 必须是 section 名到节点树的映射（键值映射），当前是列表'
+        );
+    }
+
+    public function testEmptyPathSegmentRejected(): void
+    {
+        $this->expectError("body:\n  - type: text\n    text: '{{ a..b }}'\n", '非法路径 "a..b"');
+    }
+
+    public function testOptionTextRejectsInterpolation(): void
+    {
+        $this->expectError(
+            "body:\n  - type: form\n    action: /s\n    fields:\n      - name: s\n        label: S\n        input: select\n        options:\n          a: '{{ x }}'\n",
+            '不支持 {{ }} 插值'
+        );
+    }
+
+    public function testFormMethodRejectsNonStringValues(): void
+    {
+        // YAML parses a bare 123 into an int, so the shared type guard is
+        // reachable from this frontend too — and must not leak a PHP warning.
+        $this->expectError(
+            "body:\n  - type: form\n    action: /s\n    method: 123\n    fields:\n      - name: a\n        label: A\n",
+            'method 必须是字符串 "get" 或 "post"，收到 integer'
         );
     }
 
