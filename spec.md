@@ -104,6 +104,7 @@ Other notes:
 - `level: 2` and `rows: 4` parse as integers, consistent with the `heading.level` and `textarea.rows` type checks.
 - In double-quoted strings `\n` is a newline; use single quotes when you need the literal two characters `\n`.
 - A key **containing** a colon (`x-on:click:`, `wire:click:`) can be written bare — a colon immediately followed by a non-whitespace character is not a mapping separator.
+- Merge keys are not supported: `<<: {class: box}` makes libyaml warn (`expected a mapping for merging, but found scalar`) and hand back a page without those attributes. Since **any** parse warning fails the compilation (§9), spell the attributes out — `class: box` — instead of merging.
 
 ### 4.3 Attribute passthrough
 
@@ -408,7 +409,7 @@ Nodes in `content` columns run in row-variable scope and can reference `user.*` 
     body: 简介
 ```
 
-`name` is required; `data` is an optional mapping whose values support interpolation (PHP-context concatenation compilation, no pre-escaping). Compiles to:
+`name` is required; `data` is an optional mapping whose values support interpolation (PHP-context concatenation compilation, no pre-escaping). An empty `data` mapping (`data: {}`) is equivalent to writing no `data` at all — both compile to the no-argument form `<?= $this->component('c') ?>` (behavior shared by all three front-ends: an empty mapping used to emit `component('c', [ , ])`, which is not valid PHP). Compiles to:
 
 ```php
 <?= $this->component('card', [
@@ -495,8 +496,10 @@ Error categories and message requirements:
 
 | Category | Detection | Example |
 |------|------|------|
-| YAML syntax error | `yaml_parse` fails (returns false) + captured parsing warning | YAML syntax error: ... |
-| Root type error | root is not a mapping | YAML root must be a mapping (page object) |
+| YAML syntax error | `yaml_parse` returns false — a genuine parse failure only | YAML syntax error: ... |
+| YAML parse warning | `yaml_parse` succeeds but emits one or more warnings — the tree it returned is missing part of the document | YAML parse error: part of the document would be dropped: ... |
+| Empty document | the document is empty (`''` / `~` / `null`) | YAML document is empty; a page declaration must be a mapping |
+| Root type error | root is not a mapping, naming the type actually received | YAML root must be a mapping (page object), got boolean |
 | Structure error | a top-level rule is violated | both layout and body specified |
 | Unknown node | type not in the vocabulary | unknown node type |
 | Missing/invalid field | required field missing, enum out of range, type mismatch | if missing when; level is 7 |
@@ -518,6 +521,10 @@ Error categories and message requirements:
 | `__` misuse | `__event` is the XML variant's spelling | write "@click" directly in YAML (quoted) |
 | Attribute without a mounting point | a passthrough attribute appears on a node that emits no tag | node "text" emits no tag, wrap the content with type: el |
 | Attribute value type error | passthrough attribute value is not a scalar | attribute "x" value must be scalar, got array |
+
+**Every parsing warning is fatal.** libyaml sometimes reports a warning yet still returns a (truncated) syntax tree. Those warnings used to be discarded, so the page compiled successfully while the affected part had quietly disappeared — the typical case is the merge key: `<<: {class: box}` emits `expected a mapping for merging, but found scalar` and then returns a page without that attribute. So now **any** warning from `yaml_parse()` fails the compilation, and **all** warnings are listed rather than only the last one. A real parse failure (`yaml_parse` returns `false`) is reported as `YAML syntax error: ...`; a successful parse that warned is reported as `YAML parse error: part of the document would be dropped: ...`.
+
+**Empty and scalar documents are not syntax errors.** `''`, `~` and `null` are valid YAML documents that carry no mapping, so they report `YAML document is empty; a page declaration must be a mapping` instead of a syntax error. For the same reason a non-mapping root names the type it actually got: `false` (a complete YAML document in its own right, not a parse failure) reports `YAML root must be a mapping (page object), got boolean`, a string root reports `... got string`, and `YAML syntax error` stays reserved for genuine parse failures.
 
 The compiler maintains a path from the root to each node (e.g. `sections.content[2]`), so errors always carry a path. When a YAML syntax error cannot be located to a node, the parser message plus the file path is output.
 
@@ -709,6 +716,7 @@ sections:
 - `level: 2`、`rows: 4` 解析为整数，与 `heading.level`、`textarea.rows` 的类型校验一致。
 - 双引号字符串中 `\n` 是换行；需要字面 `\n` 两个字符时用单引号。
 - 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后面紧跟非空白字符即不构成映射分隔。
+- 不支持 merge key：`<<: {class: box}` 会让 libyaml 发出 `expected a mapping for merging, but found scalar` 警告，并交回一个不含这些属性的页面。由于**任何**解析警告都会导致编译失败（§9），请把属性逐个写出来（`class: box`），不要用合并。
 
 ### 4.3 属性透传
 
@@ -1013,7 +1021,7 @@ body/sections 中的每个节点必须有 `type` 字段。共 9 种节点 + 2 �
     body: 简介
 ```
 
-`name` 必填，`data` 可选映射，值支持插值（PHP 上下文拼接编译，不预转义）。编译为：
+`name` 必填，`data` 可选映射，值支持插值（PHP 上下文拼接编译，不预转义）。空 `data` 映射（`data: {}`）与完全不写 `data` 等价——两者都编译为不带参形式 `<?= $this->component('c') ?>`（这是三个前端共用的行为：过去空映射会产出 `component('c', [ , ])` 这种非法 PHP）。编译为：
 
 ```php
 <?= $this->component('card', [
@@ -1100,8 +1108,10 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 
 | 类别 | 检测 | 示例 |
 |------|------|------|
-| YAML 语法错误 | `yaml_parse` 失败（返回 false）+ 捕获解析警告 | YAML 语法错误: ... |
-| 根类型错误 | 根不是映射 | YAML 根必须是映射（页面对象） |
+| YAML 语法错误 | `yaml_parse` 返回 false——仅限真正的解析失败 | YAML 语法错误: ... |
+| YAML 解析警告 | `yaml_parse` 成功但发出了一条或多条警告——返回的语法树已缺失文档的一部分 | YAML 解析错误（文档的部分内容会被丢弃）: ... |
+| 空文档 | 文档为空（`''` / `~` / `null`） | YAML 文档为空；页面声明必须是映射 |
+| 根类型错误 | 根不是映射，并给出实际收到的类型 | YAML 根必须是映射（页面对象），收到 boolean |
 | 结构错误 | 顶层规则违反 | 同时指定 layout 与 body |
 | 未知节点 | type 不在词表 | 未知节点类型 |
 | 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | if 缺 when；level 为 7 |
@@ -1123,6 +1133,10 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | `__` 误用 | `__event` 是 XML 版的写法 | YAML 里直接写 "@click"（加引号） |
 | 属性无挂载点 | 透传属性出现在不输出标签的节点上 | 节点 "text" 不输出标签，请用 type: el 包裹内容 |
 | 属性值类型错误 | 透传属性值不是标量 | 属性 "x" 的值必须是标量，收到 array |
+
+**任何解析警告都是致命的。** libyaml 有时会「报了警告但仍返回一棵语法树」——返回的树是残缺的。过去这些警告被丢弃，于是页面编译成功、而缺失的那部分已经悄悄消失——最典型的是 merge key：`<<: {class: box}` 会发出 `expected a mapping for merging, but found scalar` 警告，然后返回一个不含该属性的页面。因此现在 `yaml_parse()` 的**任何**警告都会导致编译失败，并且**所有**警告都会被列出，不再只保留最后一条。真解析失败（`yaml_parse` 返回 `false`）报 `YAML 语法错误: ...`；解析成功但有警告报 `YAML 解析错误（文档的部分内容会被丢弃）: ...`。
+
+**空文档与标量根不是语法错误。** `''`、`~`、`null` 都是合法 YAML 文档，只是不承载任何映射，因此报 `YAML 文档为空；页面声明必须是映射`，不再误报为语法错误。同理，非映射根会给出实际类型：`false`（本身就是一份完整的 YAML 文档，不是解析失败）报 `YAML 根必须是映射（页面对象），收到 boolean`，字符串根报同一条消息、收到的类型是 `string`，`YAML 语法错误` 只留给真正的解析失败。
 
 编译器为每个节点维护从根到自身的路径（如 `sections.content[2]`），错误必带路径。YAML 语法错误无法定位到节点时，输出解析器消息 + 文件路径。
 

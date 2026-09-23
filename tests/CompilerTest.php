@@ -1004,6 +1004,48 @@ sections:
         );
     }
 
+    public function testParseWarningsAreFatalBecauseTheyMeanLostContent(): void
+    {
+        // A merge key is the clearest case: libyaml warns, still hands back a tree,
+        // and the merged attribute is simply gone — so the page used to compile
+        // with no sign that anything had been dropped.
+        $this->expectError(
+            "body:\n  - type: heading\n    level: 2\n    text: T\n    <<: {class: box}\n",
+            'part of the document would be dropped'
+        );
+    }
+
+    public function testEmptyDocumentIsNotReportedAsASyntaxError(): void
+    {
+        // yaml_parse() answers null for an empty document. Calling that a syntax
+        // error pointed at nothing: no line, no cause, no document.
+        $this->expectError('', 'YAML document is empty');
+        $this->expectError('~', 'YAML document is empty');
+    }
+
+    public function testScalarRootsNameTheirType(): void
+    {
+        // `false` is a complete YAML document rather than a parse failure, so it
+        // belongs with the other non-mapping roots; only a genuine parse failure
+        // reports a syntax error.
+        $this->expectError('false', 'YAML root must be a mapping (page object), got boolean');
+        $this->expectError('hello', 'YAML root must be a mapping (page object), got string');
+    }
+
+    public function testEmptyComponentDataCompilesWithoutAnArgumentArray(): void
+    {
+        // Shared with the other two frontends: an empty map used to emit
+        // component('c', [ , ]), which is not valid PHP at all.
+        self::assertSame(
+            "<?= \$this->component('c') ?>",
+            $this->compile("body:\n  - type: component\n    name: c\n    data: {}\n")
+        );
+        self::assertSame(
+            "<?= \$this->component('c') ?>",
+            $this->compile("body:\n  - type: component\n    name: c\n")
+        );
+    }
+
     private function compile(string $yaml): string
     {
         return $this->compiler->compileSource($yaml);
@@ -1011,8 +1053,14 @@ sections:
 
     private function expectError(string $yaml, string $needle): void
     {
-        $this->expectException(CompileException::class);
-        $this->expectExceptionMessage($needle);
-        $this->compile($yaml);
+        // try/catch rather than expectException(): a test that checks several
+        // failures in one method would otherwise stop at the first one thrown and
+        // leave every later case silently unasserted.
+        try {
+            $this->compile($yaml);
+            $this->fail('should have failed to compile: ' . $needle);
+        } catch (CompileException $e) {
+            $this->assertStringContainsString($needle, $e->getMessage());
+        }
     }
 }
