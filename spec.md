@@ -481,8 +481,9 @@ Behavior conventions:
 
 - Output filename: `users.page.yaml` → `users.tpl.php`
 - Existing artifacts are overwritten unconditionally (derived-file semantics)
-- When processing a directory, reports per file `编译: <source> → <target>`; a failure does not interrupt the other files
+- When processing a directory, reports per file `compiled: <source> -> <target>`; a failure does not interrupt the other files
 - Exit code: 0 if all succeed; 1 if any fails
+- An unrecognised `-`/`--option` is an error: it never falls through to the positional arguments, where a mistyped `--check` would silently become the output directory and turn a dry run into a real write
 
 ## 9. Error Handling
 
@@ -596,7 +597,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | section value type | `sections`' value not an array (string/null) gives a readable error rather than a PHP TypeError |
 | column value type | `column.content` not an array, or written as a single-node mapping, gives a readable error rather than a PHP TypeError or `content[type]: 节点必须是对象` |
 | Root and list shape | `body` not an array or written as a single mapping, `layout` not a string, `sections` not a mapping; `then` / `each.body` / `fields` / `columns` written as mappings give readable errors |
-| CLI | single-file compile / directory recursion / output-dir / --check / --help / failure exit code |
+| CLI | single-file compile / directory recursion / output-dir / --check / --help / unknown option rejected / failure exit code |
 | Integration | compiled artifact renders successfully after second compilation via TemplateCompiler (interop with migears/template) |
 | Copy consistency | built-in components byte-for-byte identical to `migears/xml-pages` (validated on a monorepo checkout, skipped on standalone install) |
 
@@ -1095,6 +1096,7 @@ php bin/yaml-pages --help
 - 已存在的产物无条件覆盖（派生文件语义）
 - 处理目录时逐文件报告 `编译: <source> → <target>`，失败不中断其他文件
 - 退出码：全部成功 0；任一失败 1
+- 未识别的 `-`/`--option` 一律报错：它不会落到位置参数上——否则拼错的 `--check` 会被静默当成输出目录，把干跑变成真实写盘
 
 ## 9. 错误处理
 
@@ -1208,7 +1210,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | section 值类型 | `sections` 的值不是数组（字符串/空值）时报可读错误，而不是 PHP TypeError |
 | column 值类型 | `column.content` 不是数组、或写成单个节点映射时报可读错误，而不是 PHP TypeError 或 `content[type]: 节点必须是对象` |
 | 根与列表形态 | `body` 非数组或写成单个映射、`layout` 非字符串、`sections` 非映射；`then` / `each.body` / `fields` / `columns` 写成映射时报可读错误 |
-| CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 失败退出码 |
+| CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 未识别选项被拒 / 失败退出码 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
 | 副本一致性 | 内置组件与 `migears/xml-pages` 逐字相同（同仓检出时校验，独立安装时跳过） |
 

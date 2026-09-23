@@ -108,6 +108,33 @@ final class CliTest extends TestCase
         $this->assertFileExists($dir . '/good.tpl.php');
     }
 
+    public function testUnknownOptionIsRejectedInsteadOfBecomingTheOutputDir(): void
+    {
+        $dir = $this->tempDir();
+        $source = $dir . '/a.page.yaml';
+        file_put_contents($source, 'body:
+  - type: text
+    text: A');
+
+        // A mistyped --check used to fall through to the output-directory
+        // position: the intended dry run wrote into a directory named "--chck".
+        [$output, $code] = $this->runCli(['compile', $source, '--chck']);
+
+        $this->assertSame(1, $code);
+        $this->assertStringContainsString('unknown option: --chck', $output);
+        $this->assertFileDoesNotExist($dir . '/a.tpl.php');
+        // The stray directory would be relative to the working directory.
+        $this->assertDirectoryDoesNotExist(getcwd() . '/--chck');
+    }
+
+    public function testUnknownOptionIsRejectedBeforeTheInputIsRead(): void
+    {
+        [$output, $code] = $this->runCli(['compile', '/nonexistent.page.yaml', '--verbose']);
+
+        $this->assertSame(1, $code);
+        $this->assertStringContainsString('unknown option: --verbose', $output);
+    }
+
     /**
      * @param list<string> $args
      * @return array{string, int}
