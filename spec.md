@@ -114,7 +114,7 @@ sections:
    - `@event`——Alpine / Vue 的事件简写，写作 `"@click"`（键以 `@` 开头必须加引号）
    - 带冒号的指令名：`x-on:click`、`x-bind:href`、`v-on:click`、`wire:click`、`on:click`、`:href`（键以 `:` 开头同样加引号）
    - 前缀：`x-`、`v-`、`hx-`、`data-`
-   - 常用 HTML 钩子：`class`、`id`、`style`
+   - 常用 HTML 钩子：`class`、`id`、`style`，以及 `bind`（前端框架的绑定属性，值是浏览器端变量名）
 3. **其余一律编译错误**——未知键视为拼写错误，绝不静默丢弃。
 
 不输出标签的节点（`text`、`if`、`each`、`component`）不接受透传属性，需用 `el` 包裹。页面根同理，只认 `title` / `layout` / `body` / `sections`。
@@ -361,9 +361,9 @@ body/sections 中的每个节点必须有 `type` 字段。共 9 种节点 + 2 �
   empty: 暂无数据
   columns:
     - label: ID
-      bind: id
+      pop: '{{ user.id }}'
     - label: 姓名
-      bind: name
+      pop: '{{ user.name }}'
     - label: 操作
       content:
         - type: link
@@ -371,7 +371,7 @@ body/sections 中的每个节点必须有 `type` 字段。共 9 种节点 + 2 �
           text: 编辑
 ```
 
-`items` 必填，`as` 默认 `row`，`empty` 可选（空列表提示），`columns` 必填数组。**column**：`label` 必填；`bind`（相对行变量的路径）与 `content`（节点树，行变量作用域）二选一必填，同时提供即编译错误。
+`items` 必填，`as` 默认 `row`，`empty` 可选（空列表提示），`columns` 必填数组。**column**：`label` 必填；`pop`（服务端渲染进单元格的数据引用，写成 `'{{ row.id }}'`）与 `content`（节点树，行变量作用域）二选一必填，同时提供即编译错误。`pop` 必须带 `{{ }}` 且首段等于该表格的 `as` 变量。
 
 `column` 同样不必写 `type`；若写出，值必须是 `column`，否则编译错误。`label` 与 `empty` 是字面量文本，不支持 `{{ }}` 插值。
 
@@ -502,8 +502,9 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | if 缺 when；level 为 7 |
 | method 类型错误 | `form.method` 不是字符串（校验先于任何强转，不泄漏 PHP 警告） | method 必须是字符串 "get" 或 "post"，收到 array |
 | 路径错误 | 插值/路径文法不匹配 | 非法路径 "user..name" |
-| 上下文错误 | bind/content 互斥等 | column 同时含 bind 与 content |
+| 上下文错误 | pop/content 互斥等 | column 同时含 pop 与 content；pop 未引用行变量 |
 | 字面量错误 | 字面量字段写了 `{{ }}` | "empty" 是字面量字段，不支持 {{ }} 插值 |
+| 模板层标记 | 字面量字段（`label` / `name` / `tag` / `empty` / option 等）里出现 `##`——这些字段原样写入产物，没有可转义的位置 | body[0].fields[0]: "label" 是字面量，不允许出现 "##"（模板层语法） |
 | 内嵌结构类型错误 | field/column 的 type 与位置不符 | type 必须是 "field" |
 | 未知键 | 既非该节点的 DSL 字段，也不在透传白名单 | 未知属性 "levl" |
 | 花括号错乱 | 插值出现 `{{{` 或 `}}}` | 插值符号不能连续三个花括号 |
@@ -571,13 +572,14 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 条件 | if then / if then+else / `!` 取反 / when 缺失报错 |
 | 循环 | each 基础 / index / 嵌套 / items 缺失报错 |
 | 表单 | 各 input 枚举 / select options / checkbox checked / submit / 非法枚举 / select 缺 options / options 用在不支持的 input / method 非字符串报类型错误且不泄漏 PHP 警告 / required 非布尔 / option 文本非字符串 |
-| 表格 | bind 列 / content 列 / empty / as 默认与自定义 / bind+content 同存报错 / columns 缺失报错 / columns 写成映射报错 |
+| 表格 | pop 列（`{{ row.x }}`）/ content 列 / empty / as 默认与自定义 / pop+content 同存报错 / columns 缺失报错 / columns 写成映射报错 |
 | 布局 | layout+sections / body 独立 / 两者同存报错 / 双缺失报错 / title section |
 | 组件 | 无 data / data 插值（PHP 上下文拼接）/ data 字面量 |
 | 绑定 | 路径文法边界（非法字符、空段、`!` 只允许 when） |
 | 取反边界 | `each.items` 带 `!` 报错（`!` 只属于 `if.when`） |
 | 内嵌结构 | `type: field` / `type: column` 写对可通过，写成另一种即报错 |
 | 字面量 | `field.label`、`table.empty`、`option` 等字面量字段写 `{{ }}` 报错 |
+| 模板层标记 | 文本里出现 `##` 时按模板层语法转义（产物含 `\##`）；单个 `#` 不需转义（共享层，前端侧同样可达） |
 | 解析 | YAML 语法错误报错、根非映射报错 |
 | 透传 | Alpine / Vue / htmx / Livewire 指令与 `class`/`id`/`style` 透传；`"@click"` 引号键；`x-on:click` 裸键；值转义；值内插值；标量归一（整数/布尔/空值） |
 | 透传误用 | 未知键报错；无标签节点（`text`/`if`/`each`/`component`）承载属性报错；页面根未知字段报错 |

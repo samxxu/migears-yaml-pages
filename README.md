@@ -11,7 +11,7 @@ A declarative YAML page definition tool that compiles `.page.yaml` declarations 
 - Declares page structure, data binding, conditionals (`if`), loops (`each`), form fields, table columns and layout inheritance
 - `{{ path }}` interpolation with auto-escaping — XSS protection inherited from the template engine
 - Compile-time validation of structure, fields, paths and keys — nothing is silently dropped
-- **Attribute passthrough** for front-end frameworks: `"@click"`, `x-on:click`, `v-bind:href`, `wire:click`, `hx-get`, `data-*`, `class`/`id`/`style` are forwarded to the emitted tag
+- **Attribute passthrough** for front-end frameworks: `"@click"`, `x-on:click`, `v-bind:href`, `wire:click`, `hx-get`, `data-*`, `class`/`id`/`style` are forwarded to the emitted tag, plus `bind` for the framework's own binding
 - Generic `el` node, so wrapper attributes (Alpine's `x-data`) have somewhere to live
 - Built-in components (`card`, `button`, `alert`, `badge`) plus custom components written per miGears Template conventions
 - Deliberately out of scope: business logic, event handling, state management, routing, runtime YAML parsing — those belong to the front-end framework you pair it with
@@ -71,9 +71,9 @@ sections:
       empty: 暂无数据
       columns:
         - label: ID
-          bind: id
+          pop: '{{ user.id }}'
         - label: 姓名
-          bind: name
+          pop: '{{ user.name }}'
         - label: 操作
           content:
             - type: link
@@ -274,7 +274,7 @@ Fields support these inputs: `text` (default), `password`, `email`, `number`, `t
 | `columns` | yes | Column array |
 | `empty` | no | Text shown for an empty list |
 
-Columns: `label` required; exactly one of `bind` (path relative to the row variable, e.g. `id` → `row.id`) or `content` (node tree in row scope).
+Columns: `label` required; exactly one of `pop` (a data reference in braces, e.g. `'{{ user.id }}'` — the leading variable must be the table's `as`) or `content` (node tree in row scope). A field's `id` defaults to its `name`; `bind` names the front-end variable the framework binds to.
 
 ### component
 
@@ -371,7 +371,7 @@ php bin/yaml-pages --help
 Compile errors throw `MiGears\YamlPages\Exception\CompileException` with a node path, e.g.:
 
 ```
-views/pages/users.page.yaml: sections.content[2].columns[2]: 列同时指定 bind 与 content
+views/pages/users.page.yaml: sections.content[2].columns[2]: 列同时指定 pop 与 content
 ```
 
 The CLI prints errors to stderr with the file name; directory mode keeps going on failure.
@@ -403,7 +403,7 @@ MIT
 - 声明页面结构、数据绑定、条件显示（`if`）、循环列表（`each`）、表单字段、表格列与 layout 继承
 - `{{ path }}` 插值自动转义 —— XSS 防护由模板引擎承担
 - 编译期校验结构、字段、路径与键，**不静默丢弃任何东西**
-- **属性透传**：`"@click"`、`x-on:click`、`v-bind:href`、`wire:click`、`hx-get`、`data-*`、`class`/`id`/`style` 输出到生成的标签
+- **属性透传**：`"@click"`、`x-on:click`、`v-bind:href`、`wire:click`、`hx-get`、`data-*`、`class`/`id`/`style` 输出到生成的标签；`bind` 用于前端框架自己的绑定
 - 通用容器 `el`，给 `x-data` 这类包裹层属性一个落点
 - 内置组件（`card`、`button`、`alert`、`badge`），自定义组件按 miGears Template 规范编写
 - 明确不做：业务逻辑、事件处理、状态管理、路由、运行期解析 YAML —— 这些交给你搭配的前端框架
@@ -463,9 +463,9 @@ sections:
       empty: 暂无数据
       columns:
         - label: ID
-          bind: id
+          pop: '{{ user.id }}'
         - label: 姓名
-          bind: name
+          pop: '{{ user.name }}'
         - label: 操作
           content:
             - type: link
@@ -666,7 +666,7 @@ XML 的属性名装不下 `@`，所以那边用 `__click` 表示 `@click`。YAML
 | `columns` | 是 | 列数组 |
 | `empty` | 否 | 空列表时显示的文本 |
 
-列：`label` 必填；`bind`（相对行变量的路径，如 `id` → `row.id`）与 `content`（行变量作用域内的节点树）二选一。
+列：`label` 必填；`pop`（花括号形式的数据引用，如 `'{{ user.id }}'`，首段必须是该表格的 `as`）与 `content`（行变量作用域内的节点树）二选一。字段的 `id` 默认等于 `name`；`bind` 是前端框架绑定的变量名。
 
 ### component
 
@@ -763,7 +763,7 @@ php bin/yaml-pages --help
 编译错误抛出 `MiGears\YamlPages\Exception\CompileException`，信息带节点路径，例如：
 
 ```
-views/pages/users.page.yaml: sections.content[2].columns[2]: 列同时指定 bind 与 content
+views/pages/users.page.yaml: sections.content[2].columns[2]: 列同时指定 pop 与 content
 ```
 
 CLI 将错误输出到 stderr 并附文件名；目录模式继续处理其余文件。
