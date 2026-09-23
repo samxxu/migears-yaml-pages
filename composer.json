@@ -21,6 +21,9 @@
         "migears/template": "^2.0",
         "phpunit/phpunit": "^10"
     },
+    "bin": [
+        "bin/yaml-pages"
+    ],
     "repositories": [
         {
             "type": "path",
