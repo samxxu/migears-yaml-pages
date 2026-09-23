@@ -4,6 +4,10 @@
 
 A declarative YAML page definition tool that compiles `.page.yaml` declarations into miGears Template files (`.tpl.php`), which the template engine then compiles to pure PHP on first render. The YAML declaration is the single source of truth; generated templates are derived artifacts and must not be hand-edited.
 
+> **Background**: miGears is the open-source successor of **TinyGears**, a
+> self-developed PHP framework. It was renamed and open-sourced recently because
+> the name *TinyGears* is already taken in the open-source community.
+
 ## Features
 
 - PHP 8.1+, PSR-4 autoloading, namespace `MiGears\YamlPages`
