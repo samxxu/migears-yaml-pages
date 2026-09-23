@@ -1,24 +1,24 @@
-title: 用户管理
+title: User management
 layout: layout/main
 sections:
   title:
     - type: text
-      text: 用户管理
+      text: User management
   content:
     - type: heading
       level: 2
-      text: 用户列表
+      text: User list
     - type: table
       items: users
       as: user
-      empty: 暂无数据
+      empty: No data
       columns:
         - label: ID
           pop: '{{ user.id }}'
-        - label: 姓名
+        - label: Name
           pop: '{{ user.name }}'
-        - label: 操作
+        - label: Actions
           content:
             - type: link
               href: /users/{{ user.id }}/edit
-              text: 编辑
+              text: Edit

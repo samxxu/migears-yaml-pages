@@ -43,15 +43,15 @@ class Compiler extends PagesCompiler
         }
 
         if ($page === false || $page === null) {
-            throw new CompileException('YAML 语法错误' . ($error !== null ? ': ' . $error : ''));
+            throw new CompileException('YAML syntax error' . ($error !== null ? ': ' . $error : ''));
         }
         // A YAML sequence parses into a PHP list, which is an array too: without
         // the list test it slips past this guard and fails deeper as
-        // `page: 未知字段 "0"` — naming a field the author never wrote. `[]` is
+        // `page: unknown field "0"` — naming a field the author never wrote. `[]` is
         // the empty mapping as much as the empty sequence, so it is left to the
-        // "缺少页面内容" path.
+        // "missing page content" path.
         if (! is_array($page) || ($page !== [] && array_is_list($page))) {
-            throw new CompileException('YAML 根必须是映射（页面对象）');
+            throw new CompileException('YAML root must be a mapping (page object)');
         }
 
         return $page;
@@ -66,8 +66,8 @@ class Compiler extends PagesCompiler
     protected function mapAttributeName(string $name, string $path): string
     {
         if (str_starts_with($name, '__') && $name !== '__') {
-            $this->error("{$path}: 未知属性 \"{$name}\"；__event 是 XML 版的写法，YAML 里直接写 \"@"
-                . substr($name, 2) . '"（加引号）');
+            $this->error("{$path}: unknown attribute \"{$name}\"; __event is the XML variant's spelling, write \"@"
+                . substr($name, 2) . '" directly in YAML (quoted)');
         }
 
         return parent::mapAttributeName($name, $path);

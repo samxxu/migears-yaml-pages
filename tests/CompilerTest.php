@@ -21,36 +21,36 @@ final class CompilerTest extends TestCase
     {
         $out = $this->compile('body:
   - type: text
-    text: 你好');
-        $this->assertSame('你好', $out);
+    text: Hello');
+        $this->assertSame('Hello', $out);
     }
 
     public function testTextMultiLine(): void
     {
-        $out = $this->compile("body:\n  - type: text\n    text: \"第一行\\n第二行\"");
-        $this->assertSame("第一行\n第二行", $out);
+        $out = $this->compile("body:\n  - type: text\n    text: \"First line\\nSecond line\"");
+        $this->assertSame("First line\nSecond line", $out);
     }
 
     public function testTextSingleInterpolation(): void
     {
         $out = $this->compile('body:
   - type: text
-    text: 你好，{{ user.name }}');
-        $this->assertSame('你好，## $user[\'name\'] ?? \'\' ##', $out);
+    text: Hello, {{ user.name }}');
+        $this->assertSame('Hello, ## $user[\'name\'] ?? \'\' ##', $out);
     }
 
     public function testTextMultipleInterpolations(): void
     {
-        $out = $this->compile("body:\n  - type: text\n    text: '{{ user.name }}（{{ user.age }}）'");
-        $this->assertSame('## $user[\'name\'] ?? \'\' ##（## $user[\'age\'] ?? \'\' ##）', $out);
+        $out = $this->compile("body:\n  - type: text\n    text: '{{ user.name }} ({{ user.age }})'");
+        $this->assertSame('## $user[\'name\'] ?? \'\' ## (## $user[\'age\'] ?? \'\' ##)', $out);
     }
 
     public function testHeadingDefaultLevel(): void
     {
         $out = $this->compile('body:
   - type: heading
-    text: 用户管理');
-        $this->assertSame('<h1>用户管理</h1>', $out);
+    text: User management');
+        $this->assertSame('<h1>User management</h1>', $out);
     }
 
     public function testHeadingLevel(): void
@@ -58,8 +58,8 @@ final class CompilerTest extends TestCase
         $out = $this->compile('body:
   - type: heading
     level: 2
-    text: 用户管理');
-        $this->assertSame('<h2>用户管理</h2>', $out);
+    text: User management');
+        $this->assertSame('<h2>User management</h2>', $out);
     }
 
     public function testHeadingLevelOutOfRange(): void
@@ -75,8 +75,8 @@ final class CompilerTest extends TestCase
         $out = $this->compile('body:
   - type: link
     href: /users/{{ user.id }}/edit
-    text: 编辑');
-        $this->assertSame('<a href="/users/## $user[\'id\'] ?? \'\' ##/edit">编辑</a>', $out);
+    text: Edit');
+        $this->assertSame('<a href="/users/## $user[\'id\'] ?? \'\' ##/edit">Edit</a>', $out);
     }
 
     public function testLinkTarget(): void
@@ -103,9 +103,9 @@ final class CompilerTest extends TestCase
     when: user.loggedIn
     then:
       - type: text
-        text: 欢迎');
+        text: Welcome');
         $this->assertSame(
-            "<?php if (\$user['loggedIn'] ?? null): ?>\n欢迎\n<?php endif ?>",
+            "<?php if (\$user['loggedIn'] ?? null): ?>\nWelcome\n<?php endif ?>",
             $out
         );
     }
@@ -213,9 +213,9 @@ final class CompilerTest extends TestCase
     action: /users/save
     fields:
       - name: name
-        label: 姓名');
+        label: Name');
         $this->assertSame(
-            "<form action=\"/users/save\" method=\"post\">\n  <label for=\"name\">姓名</label>\n  <input type=\"text\" name=\"name\" id=\"name\">\n</form>",
+            "<form action=\"/users/save\" method=\"post\">\n  <label for=\"name\">Name</label>\n  <input type=\"text\" name=\"name\" id=\"name\">\n</form>",
             $out
         );
     }
@@ -227,26 +227,26 @@ final class CompilerTest extends TestCase
     action: /s
     fields:
       - name: a
-        label: 密码
+        label: Password
         input: password
       - name: b
-        label: 邮箱
+        label: Email
         input: email
       - name: c
-        label: 数量
+        label: Quantity
         input: number
       - name: d
-        label: 隐藏
+        label: Hidden
         input: hidden
         value: user.token
       - name: e
-        label: 保存
+        label: Save
         input: submit');
         $this->assertStringContainsString('<input type="password" name="a" id="a">', $out);
         $this->assertStringContainsString('<input type="email" name="b" id="b">', $out);
         $this->assertStringContainsString('<input type="number" name="c" id="c">', $out);
         $this->assertStringContainsString('<input type="hidden" name="d" value="## $user[\'token\'] ?? \'\' ##">', $out);
-        $this->assertStringContainsString('<input type="submit" value="保存">', $out);
+        $this->assertStringContainsString('<input type="submit" value="Save">', $out);
     }
 
     public function testFormFieldValueBinding(): void
@@ -256,12 +256,12 @@ final class CompilerTest extends TestCase
     action: /s
     fields:
       - name: name
-        label: 姓名
+        label: Name
         value: user.name
         required: true
-        placeholder: 请输入');
+        placeholder: Enter');
         $this->assertStringContainsString(
-            '<input type="text" name="name" id="name" value="## $user[\'name\'] ?? \'\' ##" placeholder="请输入" required>',
+            '<input type="text" name="name" id="name" value="## $user[\'name\'] ?? \'\' ##" placeholder="Enter" required>',
             $out
         );
     }
@@ -273,7 +273,7 @@ final class CompilerTest extends TestCase
     action: /s
     fields:
       - name: bio
-        label: 简介
+        label: About
         input: textarea
         rows: 4
         value: user.bio');
@@ -290,17 +290,17 @@ final class CompilerTest extends TestCase
     action: /s
     fields:
       - name: role
-        label: 角色
+        label: Role
         input: select
         options:
-          admin: 管理员
-          user: 普通用户');
+          admin: Admin
+          user: Standard user');
         $this->assertStringContainsString(
             '<select name="role" id="role">',
             $out
         );
-        $this->assertStringContainsString('<option value="admin">管理员</option>', $out);
-        $this->assertStringContainsString('<option value="user">普通用户</option>', $out);
+        $this->assertStringContainsString('<option value="admin">Admin</option>', $out);
+        $this->assertStringContainsString('<option value="user">Standard user</option>', $out);
     }
 
     public function testFormCheckboxChecked(): void
@@ -310,7 +310,7 @@ final class CompilerTest extends TestCase
     action: /s
     fields:
       - name: active
-        label: 启用
+        label: Enabled
         input: checkbox
         checked: user.active');
         $this->assertStringContainsString(
@@ -375,10 +375,10 @@ final class CompilerTest extends TestCase
     columns:
       - label: ID
         pop: "{{ row.id }}"
-      - label: 姓名
+      - label: Name
         pop: "{{ row.name }}"');
         $this->assertSame(
-            "<table>\n<thead><tr><th>ID</th><th>姓名</th></tr></thead>\n<tbody>\n<?php foreach (\$users ?? [] as \$row): ?>\n<tr>\n<td>## \$row['id'] ?? '' ##</td>\n<td>## \$row['name'] ?? '' ##</td>\n</tr>\n<?php endforeach ?>\n</tbody>\n</table>",
+            "<table>\n<thead><tr><th>ID</th><th>Name</th></tr></thead>\n<tbody>\n<?php foreach (\$users ?? [] as \$row): ?>\n<tr>\n<td>## \$row['id'] ?? '' ##</td>\n<td>## \$row['name'] ?? '' ##</td>\n</tr>\n<?php endforeach ?>\n</tbody>\n</table>",
             $out
         );
     }
@@ -402,13 +402,13 @@ final class CompilerTest extends TestCase
   - type: table
     items: users
     columns:
-      - label: 操作
+      - label: Actions
         content:
           - type: link
             href: /users/{{ user.id }}/edit
-            text: 编辑');
+            text: Edit');
         $this->assertStringContainsString(
-            '<td><a href="/users/## $user[\'id\'] ?? \'\' ##/edit">编辑</a></td>',
+            '<td><a href="/users/## $user[\'id\'] ?? \'\' ##/edit">Edit</a></td>',
             $out
         );
     }
@@ -418,12 +418,12 @@ final class CompilerTest extends TestCase
         $out = $this->compile('body:
   - type: table
     items: users
-    empty: 暂无数据
+    empty: No data
     columns:
       - label: ID
         pop: "{{ row.id }}"');
         $this->assertStringContainsString(
-            "<?php if ((\$users ?? []) === []): ?>\n<tr><td colspan=\"1\">暂无数据</td></tr>\n<?php else: ?>",
+            "<?php if ((\$users ?? []) === []): ?>\n<tr><td colspan=\"1\">No data</td></tr>\n<?php else: ?>",
             $out
         );
         $this->assertStringContainsString('<?php endif ?>', $out);
@@ -465,23 +465,23 @@ final class CompilerTest extends TestCase
 sections:
   content:
     - type: text
-      text: 主体');
+      text: Content');
         $this->assertSame(
-            "<?php \$this->extends('layout/admin') ?>\n\n<?php \$this->start('content') ?>\n主体\n<?php \$this->end() ?>\n",
+            "<?php \$this->extends('layout/admin') ?>\n\n<?php \$this->start('content') ?>\nContent\n<?php \$this->end() ?>\n",
             $out
         );
     }
 
     public function testLayoutWithTitleSection(): void
     {
-        $out = $this->compile('title: 用户管理
+        $out = $this->compile('title: User management
 layout: layout/admin
 sections:
   content:
     - type: text
-      text: 主体');
+      text: Content');
         $this->assertStringContainsString(
-            "<?php \$this->start('title') ?>\n用户管理\n<?php \$this->end() ?>",
+            "<?php \$this->start('title') ?>\nUser management\n<?php \$this->end() ?>",
             $out
         );
     }
@@ -512,7 +512,7 @@ sections:
         $compiler = new Compiler(function (string $message) use (&$warnings): void {
             $warnings[] = $message;
         });
-        $compiler->compileSource('title: 忽略
+        $compiler->compileSource('title: ignored
 body:
   - type: text
     text: A');
@@ -526,19 +526,19 @@ body:
   - type: component
     name: card
     data:
-      title: 标题
-      body: 简介');
+      title: Title
+      body: About');
         $this->assertSame(
-            "<?= \$this->component('card', [\n    'title' => '标题',\n    'body' => '简介',\n]) ?>",
+            "<?= \$this->component('card', [\n    'title' => 'Title',\n    'body' => 'About',\n]) ?>",
             $out
         );
     }
 
     public function testComponentInterpolatedData(): void
     {
-        $out = $this->compile("body:\n  - type: component\n    name: card\n    data:\n      title: '{{ user.name }}'\n      body: '编辑 {{ user.name }} 的信息'");
+        $out = $this->compile("body:\n  - type: component\n    name: card\n    data:\n      title: '{{ user.name }}'\n      body: 'Edit the info for {{ user.name }}'");
         $this->assertSame(
-            "<?= \$this->component('card', [\n    'title' => (\$user['name'] ?? ''),\n    'body' => '编辑 ' . (\$user['name'] ?? '') . ' 的信息',\n]) ?>",
+            "<?= \$this->component('card', [\n    'title' => (\$user['name'] ?? ''),\n    'body' => 'Edit the info for ' . (\$user['name'] ?? ''),\n]) ?>",
             $out
         );
     }
@@ -566,7 +566,7 @@ body:
 
     public function testInvalidInterpolation(): void
     {
-        $this->expectError("body:\n  - type: text\n    text: '{{ user.name + 1 }}'", '非法路径');
+        $this->expectError("body:\n  - type: text\n    text: '{{ user.name + 1 }}'", 'invalid path');
     }
 
     public function testInvalidPath(): void
@@ -574,7 +574,7 @@ body:
         $this->expectError('body:
   - type: each
     items: 1users
-    body: []', '路径');
+    body: []', 'invalid path');
     }
 
     public function testYamlSyntaxError(): void
@@ -600,7 +600,7 @@ sections:
 
     public function testEachItemsRejectsNegation(): void
     {
-        $this->expectError("body:\n  - type: each\n    items: '!users'\n    body: []", '非法路径');
+        $this->expectError("body:\n  - type: each\n    items: '!users'\n    body: []", 'invalid path');
     }
 
     public function testFieldTypeOptionalButMustMatch(): void
@@ -620,7 +620,7 @@ sections:
     fields:
       - type: column
         name: a
-        label: A', 'type 必须是 "field"');
+        label: A', 'type must be "field"');
     }
 
     public function testColumnTypeOptionalButMustMatch(): void
@@ -640,7 +640,7 @@ sections:
     columns:
       - type: field
         label: ID
-        pop: "{{ row.id }}"', 'type 必须是 "column"');
+        pop: "{{ row.id }}"', 'type must be "column"');
     }
 
     public function testFieldLabelRejectsInterpolation(): void
@@ -650,7 +650,7 @@ sections:
     action: /s
     fields:
       - name: a
-        label: "{{ user.name }}"', '不支持 {{ }} 插值');
+        label: "{{ user.name }}"', 'does not support {{ }} interpolation');
     }
 
     public function testTableEmptyRejectsInterpolation(): void
@@ -661,11 +661,11 @@ sections:
     empty: "{{ user.name }}"
     columns:
       - label: ID
-        pop: "{{ row.id }}"', '不支持 {{ }} 插值');
+        pop: "{{ row.id }}"', 'does not support {{ }} interpolation');
     }
 
     /* ---------------------------------------------------------------- *
-     * 前端框架兼容：属性透传 / el
+     * Frontend framework compatibility: attribute passthrough / el
      * ---------------------------------------------------------------- */
 
     public function testPassthroughAtShorthandIsQuotedKey(): void
@@ -696,17 +696,17 @@ sections:
         ];
         foreach ($cases as $yaml => $expected) {
             $this->assertSame(
-                '<h2' . $expected . '>标题</h2>',
-                $this->compile("body:\n  - type: heading\n    level: 2\n    text: 标题\n    " . $yaml),
-                "字段 {$yaml} 未按预期透传"
+                '<h2' . $expected . '>Title</h2>',
+                $this->compile("body:\n  - type: heading\n    level: 2\n    text: Title\n    " . $yaml),
+                "field {$yaml} not forwarded as expected"
             );
         }
     }
 
     public function testPassthroughQuotedColonShorthand(): void
     {
-        $out = $this->compile("body:\n  - type: link\n    href: /x\n    text: 去\n    \":href\": url");
-        $this->assertSame('<a href="/x" :href="url">去</a>', $out);
+        $out = $this->compile("body:\n  - type: link\n    href: /x\n    text: Go\n    \":href\": url");
+        $this->assertSame('<a href="/x" :href="url">Go</a>', $out);
     }
 
     public function testPassthroughValueIsEscaped(): void
@@ -738,14 +738,14 @@ sections:
     {
         $out = $this->compile(
             "body:\n"
-            . "  - type: link\n    href: /x\n    text: 去\n    \"@click\": go()\n"
+            . "  - type: link\n    href: /x\n    text: Go\n    \"@click\": go()\n"
             . "  - type: form\n    action: /s\n    x-on:submit.prevent: save()\n    fields:\n"
-            . "      - type: field\n        name: q\n        label: 查\n        x-model: kw\n"
+            . "      - type: field\n        name: q\n        label: Search\n        x-model: kw\n"
             . "  - type: table\n    items: users\n    class: grid\n    columns:\n"
             . "      - type: column\n        label: ID\n        pop: '{{ row.id }}'\n        class: w-8"
         );
 
-        $this->assertStringContainsString('<a href="/x" @click="go()">去</a>', $out);
+        $this->assertStringContainsString('<a href="/x" @click="go()">Go</a>', $out);
         $this->assertStringContainsString('<form action="/s" method="post" x-on:submit.prevent="save()">', $out);
         $this->assertStringContainsString('name="q" id="q" x-model="kw"', $out);
         $this->assertStringContainsString('<table class="grid">', $out);
@@ -754,23 +754,23 @@ sections:
 
     public function testUnknownFieldRejected(): void
     {
-        $this->expectError("body:\n  - type: heading\n    level: 2\n    text: T\n    levl: 3", '未知属性 "levl"');
+        $this->expectError("body:\n  - type: heading\n    level: 2\n    text: T\n    levl: 3", 'unknown attribute "levl"');
     }
 
     public function testPassthroughOnTaglessNodeRejected(): void
     {
-        $this->expectError("body:\n  - type: text\n    text: hi\n    class: box", '不输出标签');
+        $this->expectError("body:\n  - type: text\n    text: hi\n    class: box", 'emits no tag');
     }
 
     public function testUnknownPageFieldRejected(): void
     {
-        $this->expectError("titel: T\nbody:\n  - type: text\n    text: hi", '未知字段 "titel"');
+        $this->expectError("titel: T\nbody:\n  - type: text\n    text: hi", 'unknown field "titel"');
     }
 
     public function testElNode(): void
     {
-        $out = $this->compile("body:\n  - type: el\n    tag: section\n    class: card\n    body:\n      - type: heading\n        level: 2\n        text: 标题\n      - type: text\n        text: 正文");
-        $this->assertSame("<section class=\"card\">\n<h2>标题</h2>\n正文\n</section>", $out);
+        $out = $this->compile("body:\n  - type: el\n    tag: section\n    class: card\n    body:\n      - type: heading\n        level: 2\n        text: Title\n      - type: text\n        text: Content");
+        $this->assertSame("<section class=\"card\">\n<h2>Title</h2>\nContent\n</section>", $out);
     }
 
     public function testElEmptyBody(): void
@@ -785,18 +785,18 @@ sections:
         // mistake, not "no children" — drop the key, or write body: [].
         $this->expectError(
             "body:\n  - type: el\n    tag: div\n    body:\n",
-            'body: 必须是节点树数组，收到 NULL'
+            'must be a node tree array, got NULL'
         );
     }
 
     public function testElMissingTag(): void
     {
-        $this->expectError("body:\n  - type: el\n    class: x\n    body: []", '缺少 string 字段 "tag"');
+        $this->expectError("body:\n  - type: el\n    class: x\n    body: []", 'missing string field "tag"');
     }
 
     public function testElInvalidTag(): void
     {
-        $this->expectError("body:\n  - type: el\n    tag: 'DIV!'\n    body: []", '非法的 tag');
+        $this->expectError("body:\n  - type: el\n    tag: 'DIV!'\n    body: []", 'invalid tag');
     }
 
     public function testDunderPointsAtYamlSpelling(): void
@@ -814,7 +814,7 @@ sections:
         foreach ($cases as $field => $suggested) {
             try {
                 $this->compile("body:\n  - type: el\n    tag: div\n    " . $field . "\n    body: []");
-                $this->fail("{$field} 应当编译失败");
+                $this->fail("expected {$field} to fail to compile");
             } catch (CompileException $e) {
                 $this->assertStringContainsString($suggested, $e->getMessage());
             }
@@ -825,7 +825,7 @@ sections:
     {
         try {
             $this->compile("body:\n  - type: el\n    tag: div\n    x-on-click: go()\n    body: []");
-            $this->fail('应当编译失败');
+            $this->fail('expected the compile to fail');
         } catch (CompileException $e) {
             $this->assertStringContainsString('"@click"', $e->getMessage());
         }
@@ -841,7 +841,7 @@ sections:
     public function testTripleBraceRejected(): void
     {
         foreach (['{{{ user.name }}}', '{{ user.name }}}', '{{{ user.name }}'] as $text) {
-            $this->expectError("body:\n  - type: text\n    text: '" . $text . "'", '三个花括号');
+            $this->expectError("body:\n  - type: text\n    text: '" . $text . "'", 'cannot run three braces');
         }
     }
 
@@ -854,8 +854,8 @@ sections:
     public function testSectionsValueMustBeNodeTree(): void
     {
         $this->expectError(
-            "layout: layout/main\nsections:\n  content: 不是数组",
-            'sections.content: 必须是节点树数组，收到 string'
+            "layout: layout/main\nsections:\n  content: not-an-array",
+            'must be a node tree array, got string'
         );
     }
 
@@ -863,15 +863,15 @@ sections:
     {
         $this->expectError(
             "layout: layout/main\nsections:\n  content:",
-            'sections.content: 必须是节点树数组，收到 NULL'
+            'must be a node tree array, got NULL'
         );
     }
 
     public function testColumnContentMustBeNodeTree(): void
     {
         $this->expectError(
-            "body:\n  - type: table\n    items: u\n    columns:\n      - label: A\n        content: 裸文本",
-            'content: 必须是节点树数组'
+            "body:\n  - type: table\n    items: u\n    columns:\n      - label: A\n        content: bare-text",
+            'must be a node tree array, got string'
         );
     }
 
@@ -881,22 +881,22 @@ sections:
         // it is still an array, so the failure must name the missing list.
         $this->expectError(
             "body:\n  - type: table\n    items: u\n    columns:\n      - label: A\n        content:\n          type: text\n          text: x",
-            'content: 必须是节点树数组（列表）'
+            'a list), but got a key-value map'
         );
     }
 
     public function testBodyMustBeNodeList(): void
     {
-        $this->expectError('body: 不是数组', 'body: 必须是节点树数组，收到 string');
-        $this->expectError("body:\n  type: text\n  text: x", 'body: 必须是节点树数组（列表）');
+        $this->expectError('body: not-an-array', 'must be a node tree array, got string');
+        $this->expectError("body:\n  type: text\n  text: x", 'a list), but got a key-value map');
     }
 
     public function testRootFieldsAreTypeChecked(): void
     {
-        $this->expectError("layout:\n  - layout/main\nsections: {}", 'page: layout 必须是字符串，收到 array');
+        $this->expectError("layout:\n  - layout/main\nsections: {}", 'layout must be a string, got array');
         $this->expectError(
-            "layout: layout/main\nsections: 不是映射",
-            'page: sections 必须是 section 名到节点树的映射，收到 string'
+            "layout: layout/main\nsections: not-a-map",
+            'sections must be a map of section name to node tree, got string'
         );
     }
 
@@ -904,11 +904,11 @@ sections:
     {
         $this->expectError(
             "body:\n  - type: if\n    when: a\n    then:\n      type: text\n      text: x",
-            'then: 必须是节点树数组（列表）'
+            'a list), but got a key-value map'
         );
         $this->expectError(
             "body:\n  - type: each\n    items: u\n    body:\n      type: text\n      text: x",
-            'body: 必须是节点树数组（列表）'
+            'a list), but got a key-value map'
         );
     }
 
@@ -916,11 +916,11 @@ sections:
     {
         $this->expectError(
             "body:\n  - type: form\n    action: /s\n    fields:\n      name: a",
-            'fields: 必须是字段数组（列表）'
+            'an array of fields (a list), but got a key-value map'
         );
         $this->expectError(
             "body:\n  - type: table\n    items: u\n    columns:\n      label: A\n      pop: '{{ row.id }}'",
-            'columns: 必须是列数组（列表）'
+            'an array of columns (a list), but got a key-value map'
         );
     }
 
@@ -928,30 +928,30 @@ sections:
     {
         $this->expectError(
             "body:\n  - type: form\n    action: /s\n    fields:\n      - name: a\n        label: A\n        required: 'true'",
-            'required 必须是布尔值，收到 string'
+            'required must be a boolean, got string'
         );
         $this->expectError(
             "body:\n  - type: form\n    action: /s\n    fields:\n      - name: s\n        label: S\n        input: select\n        options:\n          a:\n            - x",
-            'option "a" 的文本必须是字符串，收到 array'
+            'option "a" text must be a string, got array'
         );
     }
 
     public function testRootSequenceRejected(): void
     {
         // A YAML sequence is a list in PHP, so it used to slip past the root
-        // guard and fail deeper as `未知字段 "0"`.
-        $this->expectError("- type: text\n  text: hi\n", 'YAML 根必须是映射（页面对象）');
+        // guard and fail deeper as `unknown field "0"`.
+        $this->expectError("- type: text\n  text: hi\n", 'YAML root must be a mapping (page object)');
     }
 
     public function testComponentDataMustBeAMapOfLiteralKeys(): void
     {
         $this->expectError(
             "body:\n  - type: component\n    name: card\n    data:\n      '{{ user.id }}': x\n",
-            '"data 键" 是字面量字段，不支持 {{ }} 插值'
+            'is a literal field and does not support {{ }} interpolation'
         );
         $this->expectError(
             "body:\n  - type: component\n    name: card\n    data:\n      - x\n      - y\n",
-            'component 的 data 必须是「键 => 字符串」的映射（键值映射），当前是列表'
+            'component data must be a map of key => string (a key-value map), but got a list'
         );
     }
 
@@ -959,20 +959,20 @@ sections:
     {
         $this->expectError(
             "layout: layout/main\nsections:\n  - type: text\n    text: x\n",
-            'page: sections 必须是 section 名到节点树的映射（键值映射），当前是列表'
+            'must be a map of section name to node tree (a key-value map), but got a list'
         );
     }
 
     public function testEmptyPathSegmentRejected(): void
     {
-        $this->expectError("body:\n  - type: text\n    text: '{{ a..b }}'\n", '非法路径 "a..b"');
+        $this->expectError("body:\n  - type: text\n    text: '{{ a..b }}'\n", 'invalid path "a..b"');
     }
 
     public function testOptionTextRejectsInterpolation(): void
     {
         $this->expectError(
             "body:\n  - type: form\n    action: /s\n    fields:\n      - name: s\n        label: S\n        input: select\n        options:\n          a: '{{ x }}'\n",
-            '不支持 {{ }} 插值'
+            'does not support {{ }} interpolation'
         );
     }
 
@@ -982,7 +982,7 @@ sections:
         // reachable from this frontend too — and must not leak a PHP warning.
         $this->expectError(
             "body:\n  - type: form\n    action: /s\n    method: 123\n    fields:\n      - name: a\n        label: A\n",
-            'method 必须是字符串 "get" 或 "post"，收到 integer'
+            'method must be the string "get" or "post", got integer'
         );
     }
 
@@ -992,15 +992,15 @@ sections:
         // marker, so the hashes are rendered as written instead of being evaluated.
         self::assertStringContainsString(
             '\##',
-            $this->compile("body:\n  - type: text\n    text: '## 说明 ##'\n")
+            $this->compile("body:\n  - type: text\n    text: '## note ##'\n")
         );
     }
 
     public function testSingleHashStaysLiteral(): void
     {
         self::assertStringContainsString(
-            '# 一级标题',
-            $this->compile("body:\n  - type: text\n    text: '# 一级标题'\n")
+            '# Level one heading',
+            $this->compile("body:\n  - type: text\n    text: '# Level one heading'\n")
         );
     }
 

@@ -1,122 +1,130 @@
-# migears/yaml-pages —— 全特性示例
+# migears/yaml-pages — a full-feature example
 # ==================================================================
-# 本文件覆盖 yaml-pages 的全部声明语法，可直接编译并渲染，也可作为
-# 编写自己页面的参考。
+# This file covers every piece of yaml-pages declaration syntax. It can be
+# compiled and rendered as-is, and doubles as a reference for writing your
+# own pages.
 #
-# 结构约定（详见 README「前端框架集成」）：
-#   · 每个节点一个 type 字段，type 决定这个节点是什么
-#   · 字段直接写成键；结构子键是 then/else、body、fields、columns、
-#     data、options、content
-#   · 框架指令与 class/id/style 原样透传到生成的标签
+# Structure conventions (see README "Frontend framework integration"):
+#   · every node has a type field, and the type decides what the node is
+#   · fields are written directly as keys; the structural child keys are
+#     then/else, body, fields, columns, data, options, content
+#   · framework directives and class/id/style are forwarded verbatim to the
+#     generated tags
 #
-# 编译（产物落到 examples/views/，与 layout 同处一个模板搜索路径）：
+# Compile (the output lands in examples/views/, on the same template search
+# path as the layout):
 #     php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
 #
-# 渲染（内置组件在包内 components/，本示例的自定义组件在 examples/components/）：
+# Render (bundled components live in the package components/, this example's
+# custom component in examples/components/):
 #     $tpl = new Template(__DIR__ . '/examples/views');
-#     $tpl->addPath(__DIR__ . '/components');            // 内置组件：card / button / alert / badge
-#     $tpl->addPath(__DIR__ . '/examples/components');   // 自定义组件：my-card
+#     $tpl->addPath(__DIR__ . '/components');            // built-in: card / button / alert / badge
+#     $tpl->addPath(__DIR__ . '/examples/components');   // custom: my-card
 #     echo $tpl->render('full-featured', $data);
 #
-# 注：layout 与 body 互斥，无法在同一文件内同时演示。无 layout 的独立页面
-# 写法见文件末尾注释。
+# Note: layout and body are mutually exclusive, so they cannot both be
+# demonstrated in a single file. The layout-free standalone page style is
+# shown in the commented block at the end of this file.
 
-title: 用户管理 · 全特性示例
+title: User management · full-feature example
 layout: layout/main
 sections:
   content:
     # ======================================================
-    # 1. heading / text / link —— 标题、文本与链接
+    # 1. heading / text / link — headings, text, and links
     # ======================================================
 
-    # heading：level 可省略（默认 1），取值 1-6
+    # heading: level is optional (defaults to 1) and takes 1-6
     - type: heading
-      text: 页面主体
+      text: Page content
     - type: heading
       level: 2
-      text: 1. 标题、文本与链接
+      text: 1. Headings, text, and links
     - type: heading
       level: 3
-      text: 三级标题
+      text: Level three heading
 
-    # text：元素文本即内容，字面部分原样输出，插值自动转义
+    # text: the element text is the content; literal parts are output as-is
+    # and interpolations are escaped automatically
     - type: text
-      text: 这是一段纯文本。
+      text: This is plain text.
     - type: text
-      text: 你好，{{ user.name }}！你有 {{ user.messageCount }} 条未读消息。
+      text: Hello, {{ user.name }}! You have {{ user.messageCount }} unread messages.
 
-    # 值以 { 开头必须加引号，否则 YAML 会把它当流式映射
+    # A value that starts with { must be quoted, or YAML reads it as a flow map
     - type: text
-      text: '{{ user.name }}（{{ user.age }}）'
+      text: '{{ user.name }} ({{ user.age }})'
 
-    # 需要原样输出的 HTML 直接写——YAML 里 < > & 都不是特殊字符
+    # HTML that must be emitted verbatim is written straight through — in YAML,
+    # < > & are not special characters
     - type: text
-      text: <strong>加粗</strong>、<em>斜体</em>，标签原样输出。
+      text: <strong>bold</strong> and <em>italic</em>, tags are output verbatim.
 
-    # 多行文本用 YAML 块标量；|- 表示去掉结尾换行
+    # Multi-line text uses a YAML block scalar; |- drops the trailing newline
     - type: text
       text: |-
-        第一行
-        第二行
+        First line
+        Second line
 
-    # link：href 必填，text 是链接文字；target 可选；属性值同样支持插值
+    # link: href is required, text is the link label; target is optional;
+    # attribute values support interpolation too
     - type: link
       href: /users/{{ user.id }}/edit
-      text: 编辑当前用户
+      text: Edit current user
     - type: link
       href: https://example.com/docs
-      text: 在新窗口打开文档
+      text: Open the docs in a new window
       target: _blank
 
     # ======================================================
-    # 2. if —— 条件显示
-    #    when 必填；then 必填，else 可选
+    # 2. if — conditional display
+    #    when is required; then is required, else is optional
     # ======================================================
     - type: heading
       level: 2
-      text: 2. 条件显示
+      text: 2. Conditional display
 
     - type: if
       when: user.loggedIn
       then:
         - type: text
-          text: 欢迎回来，{{ user.name }}。
+          text: Welcome back, {{ user.name }}.
       else:
         - type: text
-          text: 请先登录。
+          text: Please log in.
 
-    # 取反：! 开头必须加引号（YAML 会把 ! 当 tag 前缀）
+    # Negation: a leading ! must be quoted (YAML treats ! as a tag prefix)
     - type: if
       when: '!user.hidden'
       then:
         - type: text
-          text: 该用户资料对访客可见。
+          text: This profile is visible to visitors.
 
-    # 多段路径同样可作条件：form.errors.email → form['errors']['email']
+    # A longer path also works as a condition: form.errors.email -> form['errors']['email']
     - type: if
       when: form.errors.email
       then:
         - type: text
-          text: 邮箱错误：{{ form.errors.email }}
+          text: 'Email error: {{ form.errors.email }}'
 
     # ======================================================
-    # 3. each —— 循环列表
-    #    items 必填；body 必填；as 默认 item；index 可选
+    # 3. each — loop over a list
+    #    items is required; body is required; as defaults to item; index is optional
     # ======================================================
     - type: heading
       level: 2
-      text: 3. 循环列表
+      text: 3. Loop over a list
 
-    # index 拿到的是数组键（0 起）
+    # index is the array key (starting at 0)
     - type: each
       items: users
       as: member
       index: i
       body:
         - type: text
-          text: '{{ i }}. {{ member.name }}（{{ member.email }}）'
+          text: '{{ i }}. {{ member.name }} ({{ member.email }})'
 
-    # 嵌套 each：内层 items 可引用外层变量
+    # Nested each: the inner items can reference an outer variable
     - type: each
       items: groups
       as: group
@@ -131,7 +139,7 @@ sections:
             - type: text
               text: '· {{ member.name }}'
 
-    # 循环体里同样可以写 if
+    # You can also write if inside a loop body
     - type: each
       items: users
       as: member
@@ -140,173 +148,177 @@ sections:
           when: member.active
           then:
             - type: text
-              text: '{{ member.name }} 已启用'
+              text: '{{ member.name }} is enabled'
           else:
             - type: text
-              text: '{{ member.name }} 已停用'
+              text: '{{ member.name }} is disabled'
 
     # ======================================================
-    # 4. table —— 表格
-    #    items 必填；columns 必填；as 默认 row；empty 可选
-    #    列：label 必填，pop 与 content 二选一
+    # 4. table — tables
+    #    items is required; columns is required; as defaults to row; empty is optional
+    #    columns: label is required, pop and content are mutually exclusive
     # ======================================================
     - type: heading
       level: 2
-      text: 4. 表格
+      text: 4. Tables
 
     - type: table
       items: users
       as: row
-      empty: 暂无数据
+      empty: No data
       columns:
-        # pop：服务端把数据渲染进单元格，写成 {{ row.字段 }}
+        # pop: the server renders the data into the cell, written as {{ row.<field> }}
         - label: ID
           pop: '{{ row.id }}'
-        - label: 姓名
+        - label: Name
           pop: '{{ row.name }}'
-        - label: 邮箱
+        - label: Email
           pop: '{{ row.email }}'
-        # content：行变量作用域内的节点树，可引用 row.*
-        - label: 操作
+        # content: a node tree in the row variable's scope, may reference row.*
+        - label: Actions
           content:
             - type: link
               href: /users/{{ row.id }}/edit
-              text: 编辑
+              text: Edit
 
     # ======================================================
-    # 5. form + field —— 表单
-    #    action 必填；method 默认 post；fields 必填
-    #    input：text / password / email / number / textarea
+    # 5. form + field — forms
+    #    action is required; method defaults to post; fields is required
+    #    input: text / password / email / number / textarea
     #           / select / checkbox / hidden / submit
     # ======================================================
     - type: heading
       level: 2
-      text: 5. 表单
+      text: 5. Forms
 
     - type: form
       action: /users/save
       method: post
       fields:
-        # value 绑定路径，required 是布尔，placeholder 仅单行输入框
+        # value binds a path, required is a boolean, placeholder is for single-line inputs only
         - name: name
-          label: 姓名
+          label: Name
           input: text
           value: user.name
           required: true
-          placeholder: 请输入姓名
+          placeholder: Enter a name
         - name: password
-          label: 密码
+          label: Password
           input: password
           required: true
         - name: email
-          label: 邮箱
+          label: Email
           input: email
           value: user.email
         - name: age
-          label: 年龄
+          label: Age
           input: number
           value: user.age
-        # textarea：rows 默认 4
+        # textarea: rows defaults to 4
         - name: bio
-          label: 简介
+          label: About
           input: textarea
           rows: 6
           value: user.bio
-        # select：必须提供 options，且不接受 value 绑定
+        # select: options are required, and it does not accept a value binding
         - name: role
-          label: 角色
+          label: Role
           input: select
           options:
-            admin: 管理员
-            editor: 编辑
-            user: 普通用户
-        # checkbox：checked 绑定路径，真值时输出 checked
+            admin: Admin
+            editor: Editor
+            user: Standard user
+        # checkbox: checked binds a path; a truthy value emits checked
         - name: active
-          label: 启用
+          label: Enabled
           input: checkbox
           checked: user.active
-        # hidden：不渲染 label
+        # hidden: no label is rendered
         - name: csrf
-          label: CSRF 令牌
+          label: CSRF token
           input: hidden
           value: form.csrf
-        # submit：label 即按钮文字
+        # submit: label is the button text
         - name: submit
-          label: 保存
+          label: Save
           input: submit
 
-    # method 可省略（默认 post），也可显式指定为 get
+    # method can be omitted (defaults to post) or set explicitly to get
     - type: form
       action: /users/search
       method: get
       fields:
         - name: q
-          label: 关键词
+          label: Keyword
           input: text
-          placeholder: 姓名或邮箱
+          placeholder: Name or email
         - name: go
-          label: 搜索
+          label: Search
           input: submit
 
     # ======================================================
-    # 6. component —— 组件
-    #    name 必填；data 可选映射，值支持插值
+    # 6. component — components
+    #    name is required; data is an optional map whose values support interpolation
     # ======================================================
     - type: heading
       level: 2
-      text: 6. 组件
+      text: 6. Components
 
-    # 无 data：仅传组件名
+    # No data: pass only the component name
     - type: component
       name: badge
 
-    # card：title / body（body 按原文输出，可含 HTML）
+    # card: title / body (body is output verbatim and may contain HTML)
     - type: component
       name: card
       data:
-        title: 卡片标题
-        body: 卡片正文，可含 <em>HTML</em> 片段。
+        title: Card title
+        body: Card body, may contain an <em>HTML</em> fragment.
 
-    # button：text / href（可省略，省略时渲染 <button>）/ type
+    # button: text / href (optional; when omitted it renders a <button>) / type
     - type: component
       name: button
       data:
-        text: '编辑 {{ user.name }}'
+        text: 'Edit {{ user.name }}'
         href: /users/{{ user.id }}/edit
         type: primary
 
-    # alert：type（info/success/warning/danger，默认 info）/ text
+    # alert: type (info/success/warning/danger, defaults to info) / text
     - type: component
       name: alert
       data:
         type: warning
-        text: 账户将于 {{ user.daysLeft }} 天后过期。
+        text: The account expires in {{ user.daysLeft }} days.
 
-    # data 值支持插值；转义由组件模板决定（这里是 alert 的 e()）
+    # data values support interpolation; escaping is up to the component template
+    # (here, alert's e())
     - type: component
       name: alert
       data:
         type: success
-        text: 已保存 {{ user.messageCount }} 项设置。
+        text: Saved {{ user.messageCount }} settings.
 
-    # my-card：本示例自带的自定义组件，文件在 examples/components/my-card.php，
-    # 与内置组件的区别只是它不在包内分发。见文件末尾「附：自定义组件」
+    # my-card: this example's own custom component, file at
+    # examples/components/my-card.php; the only difference from a built-in is
+    # that it is not distributed inside the package. See "Custom components" at
+    # the end of this file.
     - type: component
       name: my-card
       data:
-        title: '自定义组件 · {{ user.name }}'
-        body: 'body 由组件模板用 raw() 输出，故这里可以写 <em>HTML</em> 片段。'
+        title: 'Custom component · {{ user.name }}'
+        body: 'body is emitted by the component template with raw(), so an <em>HTML</em> fragment can be written here.'
 
     # ======================================================
-    # 7. el / 属性透传 —— 前端框架集成
-    #    el 是通用容器；框架指令与 class/id/style 原样输出到标签
+    # 7. el / attribute passthrough — frontend framework integration
+    #    el is a generic container; framework directives and class/id/style are
+    #    output verbatim onto the tag
     # ======================================================
     - type: heading
       level: 2
-      text: 7. 前端框架集成
+      text: 7. Frontend framework integration
 
-    # el：通用容器，给 x-data 这类属性一个落点
-    # @click 是 Alpine 的事件简写；键以 @ 开头必须加引号
+    # el: a generic container that gives attributes like x-data somewhere to live
+    # @click is Alpine's event shorthand; a key starting with @ must be quoted
     - type: el
       tag: div
       x-data: '{ open: false }'
@@ -315,10 +327,11 @@ sections:
       ":class": "open && 'open'"
       body:
         - type: text
-          text: 点击切换
+          text: Click to toggle
 
-    # 透传：带冒号的指令名、x- / v- / hx- / data- 前缀
-    # 键内含冒号（x-on:click:）可裸写；透传值里同样支持插值
+    # Passthrough: directive names with a colon, and the x- / v- / hx- / data- prefixes
+    # Keys containing a colon (x-on:click:) can be written bare; passthrough values
+    # support interpolation too
     - type: el
       tag: ul
       class: list
@@ -336,7 +349,7 @@ sections:
                 - type: text
                   text: '{{ member.name }}'
 
-    # 表单字段与链接同样接受透传属性
+    # Form fields and links accept passthrough attributes as well
     - type: form
       action: /users/search
       method: get
@@ -344,29 +357,30 @@ sections:
       x-on:submit.prevent: submit()
       fields:
         - name: q
-          label: 关键词
+          label: Keyword
           input: text
-          placeholder: 姓名或邮箱
+          placeholder: Name or email
           x-model.debounce.500ms: kw
         - name: go
-          label: 搜索
+          label: Search
           input: submit
 
 
 # ==================================================================
-# 附：无 layout 的独立页面模式
+# Appendix: the layout-free standalone page mode
 # ==================================================================
 #
-# layout 与 body 互斥：不写 layout 时，页面内容直接放在 body 下。
-# 此时 title 会被忽略（并给出警告），因为独立页面没有可供注入 title
-# section 的布局。
+# layout and body are mutually exclusive: when layout is not written, the page
+# content goes directly under body. In that case title is ignored (and a
+# warning is emitted), because a standalone page has no layout to inject a
+# title section into.
 #
 #   body:
 #     - type: heading
 #       level: 2
-#       text: 独立页面
+#       text: Standalone page
 #     - type: text
-#       text: 你好，{{ user.name }}。
+#       text: Hello, {{ user.name }}.
 #     - type: each
 #       items: users
 #       as: member
@@ -376,17 +390,20 @@ sections:
 #
 #
 # ==================================================================
-# 附：自定义组件
+# Appendix: custom components
 # ==================================================================
 #
-# 上面第 6 节的 my-card 就是一个自定义组件：文件是 examples/components/my-card.php，
-# 页面里用 name: my-card 引用即可，无需注册——只要它所在目录已经 addPath 进
-# 模板搜索路径。
+# The my-card in section 6 above is a custom component: the file is
+# examples/components/my-card.php and the page refers to it with name: my-card.
+# No registration is needed — as long as its directory is addPath-ed into the
+# template search path.
 #
-# 自己写一个组件，三步：
+# Writing a component of your own, three steps:
 #
-# 1) 写组件文件。组件就是普通的 miGears Template 文件（.php 或 .tpl.php 均可；
-#    .tpl.php 里 ## $x ## 是转义输出、### $x ### 才是原样输出，且会多一份编译缓存产物）：
+# 1) Write the component file. A component is just an ordinary miGears
+#    Template file (.php or .tpl.php both work; inside .tpl.php, ## $x ## is an
+#    escaped output and ### $x ### is a raw output, and it adds another compiled
+#    cache artifact):
 #
 #      // components/my-card.php
 #      <div class="my-card">
@@ -394,25 +411,31 @@ sections:
 #          <div><?= $this->raw((string) ($body ?? '')) ?></div>
 #      </div>
 #
-# 2) 让它的目录可被找到。后 addPath 的目录先被搜索，所以把同名文件放进后注册的
-#    目录即可覆盖内置组件（主题覆盖）：
+# 2) Make its directory discoverable. Directories addPath-ed later are searched
+#    first, so placing a same-named file in a later-registered directory
+#    overrides a built-in (a theme override):
 #
 #      $tpl->addPath(__DIR__ . '/components');
 #
-# 3) 在页面里按名引用：
+# 3) Refer to it by name in the page:
 #
 #      - type: component
 #        name: my-card
 #        data:
 #          title: '{{ user.name }}'
-#          body: '正文，可含 <em>HTML</em>。'
+#          body: 'Body, may contain <em>HTML</em>.'
 #
-# 要点：
-#   · 名字 = 相对某个已注册路径的路径，所以子目录可以直接用：name: admin/table
-#     命中 <path>/admin/table.php。同一份文件换个基准路径就换个名字：注册了
-#     components/ 目录时它叫 card，注册包根时它叫 components/card。
-#   · data 的键在组件内成为局部变量，值只能是字符串；页面的其它变量不会透传进组件。
-#   · data 的值以未转义形式送达，转义与否由组件模板决定：文本用 $this->e()，
-#     信任的 HTML 用 $this->raw()。页面侧预转义会叠成双重转义。
-#   · component 节点自身不输出标签，挂不上 class 等属性；需要外层属性时用 el 包裹。
-#   · 组件缺失不会在编译期报错，渲染时才抛 Component not found: <name>。
+# Key points:
+#   · The name is a path relative to some registered path, so subdirectories work
+#     directly: name: admin/table hits <path>/admin/table.php. The same file gets
+#     a different name depending on the base path: it is card when the
+#     components/ directory is registered, components/card when the package root is.
+#   · data keys become local variables inside the component, and values must be
+#     strings; other page variables are not forwarded into the component.
+#   · data values arrive unescaped; whether to escape is decided by the component
+#     template: text uses $this->e(), trusted HTML uses $this->raw(). Pre-escaping
+#     on the page would double-escape.
+#   · a component node itself emits no tag, so it cannot carry attributes like
+#     class; wrap it in an el when you need outer attributes.
+#   · a missing component does not error at compile time; it only throws at
+#     render time with "Component not found: <name>".

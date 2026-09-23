@@ -1,3 +1,608 @@
+# migears/yaml-pages Module Specification
+
+Version: 2.0.0 (draft, pending review)
+Date: 2026-09-20
+
+## 1. Positioning
+
+yaml-pages is an optional companion module of the miGears framework: a YAML-based declarative page definition tool that compiles page declarations into template files for migears/template (`.tpl.php` syntax). It is not a core component, does not take on any runtime responsibility, and only performs a compile-time "declaration → template" translation.
+
+It is the **YAML syntax front-end** of `migears/pages`: after parsing `.page.yaml` into the array IR of the pages package, node compilation, validation, interpolation, and attribute passthrough are all handled by the shared compiler (the IR contract is described in migears/pages' spec.md). This package keeps only the YAML parsing layer and a few spelling hooks, and shares the same node vocabulary and compiled artifacts as `migears/xml-pages`.
+
+It solves three problems:
+
+1. **AI generation accuracy** — structured YAML declarations are more reliably generated error-free by large models than template code that mixes HTML/PHP.
+2. **Page structure readability** — what a page looks like and which data it binds is clear at a glance from the YAML, and non-developers can participate too.
+3. **Extends rather than replaces** — migears/template itself is minimal and limited in capabilities; yaml-pages uses a declarative abstraction layer to pin down the common page shapes (lists, forms, conditionals, loops), letting business development focus on data and structure.
+
+## 2. Boundaries
+
+### 2.1 In scope
+
+- Page structure definition (node tree)
+- Data binding (`{{ path }}` interpolation)
+- Conditional display (`if`)
+- Loops over lists (`each`, `table`)
+- Form fields (`form` + `field`)
+- Table column definitions (`table` + `column`)
+- layout inheritance (`layout` + `sections`)
+- Built-in components + custom component references
+- Attribute passthrough (front-end framework directives plus `class` / `id` / `style` are emitted verbatim onto tags)
+- The generic `el` node (an attribute container for things like `x-data`)
+
+### 2.2 Out of scope (explicitly not done)
+
+- Business logic, event handling, state management, routing — all stay out of YAML; these are handled by the front-end framework
+- Runtime YAML parsing — compilation is the only entry point; runtime depends only on the generated template
+- Third-party composer dependencies — the parsing layer uses `yaml_parse` from the PECL `ext-yaml` extension (`pecl install yaml`), bringing in no third-party composer packages
+
+## 3. Core Principles
+
+### 3.1 YAML is the single source of truth
+
+Every change to a page goes back through YAML. The generated `.tpl.php` is a **derived file**: it can be overwritten by recompiling at any time and must not be hand-edited. The workflow is fixed: change YAML → run compilation → render.
+
+### 3.2 Deliberate two-stage compilation
+
+First compilation: yaml-pages parses the YAML declaration into the array IR of `migears/pages`, where the shared compiler turns it into `.tpl.php` sugar-syntax templates. This stage keeps the output readable — each DSL keyword maps visibly to the corresponding template syntax, so developers understand the declaration's semantics by reading the output and stay in control of the generated code.
+
+Second compilation: migears/template's `TemplateCompiler` compiles the `.tpl.php` into a pure PHP template (mtime-cached, recompiled only after a template change). Rendering is done by PHP: at template runtime variables are output to the browser as HTML, and the declaration layer never enters runtime.
+
+Both compilations have their own purpose; they are not merged and not skipped.
+
+### 3.3 Extremely lightweight
+
+The implementation stays within the same order of magnitude (this package's parsing layer is about 80 lines — the compilation logic all lives in the migears/pages shared layer, about 1050 lines; the CLI is about 110 lines; components are plain PHP template files). Any feature that would significantly bloat the implementation is rejected.
+
+### 3.4 Compilation is validation
+
+At compile time the structure, fields, paths, and keys are fully validated and **nothing is silently dropped**: unknown keys and misspelled directive names always raise an error rather than being quietly ignored. Whenever YAML cannot express a template capability, the compiler raises an error directly rather than inventing workaround syntax on the YAML side. Error messages must carry a node path so they are locatable.
+
+## 4. Declaration Format
+
+File extension is `.page.yaml`; the compiled artifact has the same name with `.tpl.php` (e.g. `users.page.yaml` → `users.tpl.php`).
+
+The root mapping is a single page; no `type` field is needed:
+
+```yaml
+title: 用户管理
+layout: layout/admin
+sections:
+  title: [...]
+  content: [...]
+```
+
+### 4.1 Top-level fields
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| `title` | string | no | Page title, written into the `title` section |
+| `layout` | string | no | The inherited layout template name (e.g. `layout/admin`) |
+| `body` | array | conditional | The page's body node tree when there is no `layout` |
+| `sections` | object | conditional | When there is a `layout`, each section name → array of node trees |
+
+Rule: when `layout` exists, `sections` is required and `body` is disallowed; when `layout` is absent, `body` is required and `sections` is disallowed. Violating this is a compile error.
+
+The values of `body` and `sections` are all **node-tree arrays** ("nodes" for short). When `title` exists, a `title` section is auto-generated (only effective with a `layout`; without a layout it is ignored with a warning).
+
+### 4.2 YAML writing notes
+
+The parsing layer is libyaml (ext-yaml), which follows YAML 1.1. The following forms must be quoted, otherwise YAML mis-parses them:
+
+| Scenario | Wrong spelling | Correct spelling |
+|------|----------|----------|
+| Value starts with `{` / `[` | `text: {{ user.name }}` | `text: '{{ user.name }}'` |
+| Value starts with `!` (tag prefix) | `when: !user.hidden` | `when: '!user.hidden'` |
+| Value contains `: ` (mapping separator) | `text: 时间: 12:00` | `text: '时间: 12:00'` |
+| Value contains ` #` (comment prefix) | `text: a # b` | `text: 'a # b'` |
+| **Key** starts with `@` or `:` | `@click: go()` | `"@click": go()` |
+
+Other notes:
+
+- `{{ ... }}` in the *middle* of a value (e.g. `/users/{{ user.id }}/edit`) can be written bare, without quotes.
+- `true`/`false`/`yes`/`no`/`on`/`off` are booleans in YAML 1.1 — `required: true` is intentional boolean semantics; add quotes if you need a literal string.
+- `level: 2` and `rows: 4` parse as integers, consistent with the `heading.level` and `textarea.rows` type checks.
+- In double-quoted strings `\n` is a newline; use single quotes when you need the literal two characters `\n`.
+- A key **containing** a colon (`x-on:click:`, `wire:click:`) can be written bare — a colon immediately followed by a non-whitespace character is not a mapping separator.
+
+### 4.3 Attribute passthrough
+
+Keys on a node are handled in three groups:
+
+1. **DSL fields** — fields consumed by the node type itself (e.g. `heading.level`, `link.href`, `form.action`), including structural subkeys (`then`, `body`, `fields`, `columns`, `data`, `options`, `content`).
+2. **Passthrough attributes** — emitted verbatim onto the tag produced by the node. The whitelist:
+   - `@event` — the Alpine / Vue event shorthand, written `"@click"` (a key starting with `@` must be quoted)
+   - directive names containing a colon: `x-on:click`, `x-bind:href`, `v-on:click`, `wire:click`, `on:click`, `:href` (a key starting with `:` is likewise quoted)
+   - prefixes: `x-`, `v-`, `hx-`, `data-`
+   - common HTML hooks: `class`, `id`, `style`, plus `bind` (the front-end framework's binding attribute, whose value is a browser-side variable name)
+3. **Everything else is a compile error** — unknown keys are treated as typos and never dropped silently.
+
+Nodes that emit no tag (`text`, `if`, `each`, `component`) do not accept passthrough attributes; wrap them in `el` instead. The page root is the same — it only recognizes `title` / `layout` / `body` / `sections`.
+
+Passthrough attribute values are first HTML-attribute-escaped (`ENT_COMPAT`, keeping single quotes readable) and then `{{ }}`-interpolated — the order must not be reversed, or the quotes in the `## ##` sugar syntax would be broken by escaping. Scalar values are normalized into a form HTML attributes can carry: integer `7` → `"7"`, boolean `true` → `"true"`, empty value `x-cloak:` → `x-cloak=""` (the YAML spelling of a valueless attribute); non-scalars (maps/arrays) are an error.
+
+**The only difference from the XML variant**: XML attribute names cannot hold `@`, so there `__click` stands for `@click`; YAML writes `"@click"` directly — **there is no `__` mapping**, nor is an `<attr>` node needed (a quoted YAML key can express any attribute name). Writing `__click` by mistake raises an error that tells you to use `"@click"`.
+
+**Targeted error for hyphen forms**: `x-on-*`, `x-bind-*`, `x-transition-*` do not exist in Alpine (Alpine always uses the colon form). Because the `x-` prefix would ordinarily let these through, such spellings would be silently passed through, compile successfully, yet the directive would not work — so they are intercepted separately with advice:
+
+```
+body[0]: unknown attribute "x-on-click"; Alpine event/binding directives use the colon form, write "x-on:click" or "@click"
+```
+
+## 5. Data Binding Syntax
+
+### 5.1 Path expressions
+
+A path is the only carrier of data binding; its grammar is strict:
+
+```
+path   := segment ( "." segment )*
+segment := [A-Za-z_][A-Za-z0-9_]*
+```
+
+The first segment is the variable name; subsequent segments are array-key accesses. Examples:
+
+| Path | Compiles to |
+|------|--------|
+| `users` | `$users` |
+| `user.name` | `$user['name']` |
+| `form.errors.email` | `$form['errors']['email']` |
+
+The compiled access uniformly carries `?? ''` (text/attribute context) or `?? null` (condition/loop context) as a fallback, to avoid warnings about undefined keys.
+
+### 5.2 Interpolation `{{ path }}`
+
+Text and attribute values support `{{ path }}` interpolation, compiled to **auto-escaped** output:
+
+```yaml
+- type: text
+  text: 你好，{{ user.name }}
+```
+
+Compiles to:
+
+```php
+你好，## $user['name'] ?? '' ##
+```
+
+`## ##` is compiled by TemplateCompiler into `<?= $this->e($user['name'] ?? '') ?>`; the XSS protection is provided by the template engine.
+
+Interpolation appears in only two contexts, compiled differently:
+
+| Context | Compilation method | Example |
+|--------|----------|------|
+| HTML text / attribute (text, heading, link, etc.) | keep the `## expr ##` sugar as-is | `href="/users/## $user['id'] ?? '' ##"` |
+| PHP array literal (a component's `data`) | string concatenation `'...' . ($expr) . '...'`, **no pre-escaping** | `'title' => '编辑 ' . ($user['name'] ?? '')` |
+
+The PHP context must never emit `## ##` sugar — it would be re-substituted by TemplateCompiler into the PHP string literal, causing a syntax error.
+
+**Escaping contract**: values in the PHP context reach the component unescaped; the escaping responsibility lies with the component template, which chooses `$this->e()` (text) or `$this->raw()` (trusted HTML) per field semantics. If the compiler pre-escaped, it would stack with the component template's escaping into double escaping (`&amp;lt;`).
+
+Interpolation takes effect only in these two contexts. All other fields are **literal fields**: `layout`, section names, `form.method`, `field.name`, `field.label`, an option's value and display text, `table.empty`, `column.label`, `component.name`. These fields are emitted verbatim; writing `{{ }}` in them has no effect and is a compile error (no longer silently ignored).
+
+### 5.3 Invalid paths and interpolation symbols
+
+Anything inside `{{ ... }}` that does not match the path grammar (function calls, arithmetic, string literals, nested interpolation) is a compile error, reported with a node path.
+
+Interpolation uses at most two braces: any occurrence of `{{{` or `}}}` is a compile error. Three braces fool the pairing count (in `{{{ a }}}` there is one `{{` and one `}}`, which looks paired), and the regex only matches the inner `{{ a }}`, leaving the remaining braces verbatim in the output, so the page would show scrambled `{` and `}`.
+
+### 5.4 Data shape constraint
+
+Paths compile to array access (`$user['name']`). Page data is defined as **array-shaped**, normalized at the boundary by the controller (Domain entities converted to arrays). This is a documented constraint; the module does not do object compatibility.
+
+## 6. Node Vocabulary
+
+Every node in body/sections must have a `type` field. There are 9 node types plus 2 nested structures; the nested structures (`field`, `column`) need not write `type` (the position already determines the type), but if written it must match the position:
+
+| Node | Purpose |
+|------|------|
+| `text` | Text, supports interpolation |
+| `heading` | Heading |
+| `link` | Link |
+| `if` | Conditional display |
+| `each` | Loop over a list |
+| `form` + `field` | Form and its fields |
+| `table` + `column` | Table and its columns |
+| `el` | Generic element container, carries attributes and a child node tree |
+| `component` | References a built-in or custom component |
+
+### 6.1 text
+
+```yaml
+- type: text
+  text: 你好，{{ user.name }}
+```
+
+`text` is required, emitted verbatim (the literal part is author-controlled and may contain HTML). Interpolations are auto-escaped. Multi-line strings are allowed.
+
+### 6.2 heading
+
+```yaml
+- type: heading
+  level: 2
+  text: 用户管理
+```
+
+`level` takes values 1–6, default 1; out of range is a compile error. Compiles to `<hN>...</hN>`.
+
+### 6.3 link
+
+```yaml
+- type: link
+  href: /users/{{ user.id }}/edit
+  text: 编辑
+```
+
+`href` and `text` are required, both support interpolation (auto-escaped, safe in the attribute context). `target` is optional and supports interpolation, with no validation of its value — HTML allows named targets beyond `_blank`, and an enumerated whitelist would wrongly reject legitimate uses.
+
+### 6.4 if
+
+```yaml
+- type: if
+  when: user.loggedIn
+  then:
+    - type: text
+      text: A
+  else:
+    - type: text
+      text: B
+```
+
+`when` is required; the path may carry a leading `!` for negation; `then` is a required node tree; `else` is optional. Compiles to:
+
+```php
+<?php if ($user['loggedIn'] ?? null): ?>
+  ...then...
+<?php else: ?>
+  ...else...
+<?php endif ?>
+```
+
+The negated form `when: '!user.hidden'` (note the quotes) compiles to `<?php if (!($user['hidden'] ?? null)): ?>`.
+
+### 6.5 each
+
+```yaml
+- type: each
+  items: users
+  as: user
+  index: i
+  body:
+    - type: text
+      text: '{{ user.name }}'
+```
+
+`items` is a required path, `as` defaults to `item`, `index` is optional. The `!` negation belongs only to `if.when`; a `!` on `items` is reported as an invalid path. Compiles to:
+
+```php
+<?php foreach ($users as $i => $user): ?>
+  ...body...
+<?php endforeach ?>
+```
+
+Nested `each` is allowed; an inner `as` with the same name naturally shadows according to PHP semantics.
+
+### 6.6 form + field
+
+```yaml
+- type: form
+  action: /users/save
+  method: post
+  fields:
+    - name: name
+      label: 姓名
+      input: text
+      value: user.name
+      required: true
+      placeholder: 请输入姓名
+    - name: role
+      label: 角色
+      input: select
+      options:
+        admin: 管理员
+        user: 普通用户
+    - name: bio
+      label: 简介
+      input: textarea
+      rows: 4
+      value: user.bio
+    - name: active
+      label: 启用
+      input: checkbox
+      checked: user.active
+    - name: submit
+      label: 保存
+      input: submit
+```
+
+**form**: `action` is required, `method` defaults to `post`, `fields` is a required array.
+
+**field** fields:
+
+| Field | Type | Required | Description |
+|------|------|------|------|
+| `name` | string | yes | Field name (the `name` / `id` attribute) |
+| `label` | string | yes | Label text; for `submit` type it is the button text |
+| `input` | enum | no | See below, default `text` |
+| `value` | path | no | Bound value, compiled to `value="## $path ?? '' ##"`; not supported on `submit` (button text uses `label`) |
+| `required` | bool | no | Default false; adds `required` on inputs that support the attribute; writing `true` on `hidden` / `submit` is a compile error |
+| `placeholder` | string | no | Only text/password/email/number; on other inputs it is a compile error |
+| `options` | object | select only | A mapping in the `admin: 管理员` form |
+| `checked` | path | checkbox only | Outputs the `checked` attribute when truthy; on other inputs it is a compile error |
+| `rows` | int | textarea only | Default 4; on other inputs it is a compile error |
+
+The `input` enum: `text`, `password`, `email`, `number`, `textarea`, `select`, `checkbox`, `hidden`, `submit`. An invalid enum value is a compile error. A `select` missing `options`, `options` used on an unsupported input, or `value` used on a select are all compile errors.
+
+The field **scope of use** is also a hard constraint; going out of range is a compile error (these fields used to be silently dropped): `placeholder` only on text/password/email/number, `checked` only on checkbox, `rows` only on textarea, `value` not supported on submit, `required` only on text/password/email/number/textarea/select/checkbox. When `required` is truthy, the `required` attribute is output on select/textarea/checkbox too.
+
+`field` is a nested structure: it need not write `type` (the position is the type, equivalent to the `<field>` element name in the XML variant); if `type` is written, its value must be `field`, otherwise it is a compile error. The values of `name`, `label`, and `options`' values/text are literal fields and do not support `{{ }}` interpolation.
+
+Example compiled output (excerpt):
+
+```php
+<form action="/users/save" method="post">
+  <label for="name">姓名</label>
+  <input type="text" name="name" id="name" value="## $user['name'] ?? '' ##" required>
+  <label for="role">角色</label>
+  <select name="role" id="role">
+    <option value="admin">管理员</option>
+    <option value="user">普通用户</option>
+  </select>
+  <input type="submit" value="保存">
+</form>
+```
+
+### 6.7 table + column
+
+```yaml
+- type: table
+  items: users
+  as: user
+  empty: 暂无数据
+  columns:
+    - label: ID
+      pop: '{{ user.id }}'
+    - label: 姓名
+      pop: '{{ user.name }}'
+    - label: 操作
+      content:
+        - type: link
+          href: /users/{{ user.id }}/edit
+          text: 编辑
+```
+
+`items` is required, `as` defaults to `row`, `empty` is optional (empty-list hint), `columns` is a required array. **column**: `label` is required; exactly one of `pop` (a data reference server-rendered into the cell, written `'{{ row.id }}'`) or `content` (a node tree in row-variable scope) is required, and providing both is a compile error. `pop` must include `{{ }}` and its first segment must equal the table's `as` variable.
+
+`column` likewise need not write `type`; if written, the value must be `column`, otherwise it is a compile error. `label` and `empty` are literal text and do not support `{{ }}` interpolation.
+
+Compiles to:
+
+```php
+<table>
+<thead><tr><th>ID</th><th>姓名</th><th>操作</th></tr></thead>
+<tbody>
+<?php if (($users ?? []) === []): ?>
+  <tr><td colspan="3">暂无数据</td></tr>
+<?php else: ?>
+<?php foreach ($users as $user): ?>
+<tr>
+<td>## $user['id'] ?? '' ##</td>
+<td>## $user['name'] ?? '' ##</td>
+<td><a href="/users/## $user['id'] ?? '' ##/edit">编辑</a></td>
+</tr>
+<?php endforeach ?>
+<?php endif ?>
+</tbody>
+</table>
+```
+
+Nodes in `content` columns run in row-variable scope and can reference `user.*` directly.
+
+### 6.8 component
+
+```yaml
+- type: component
+  name: card
+  data:
+    title: '{{ user.name }}'
+    body: 简介
+```
+
+`name` is required; `data` is an optional mapping whose values support interpolation (PHP-context concatenation compilation, no pre-escaping). Compiles to:
+
+```php
+<?= $this->component('card', [
+    'title' => ($user['name'] ?? ''),
+    'body' => '简介',
+]) ?>
+```
+
+Interpolated values reach the component unescaped; the component template decides escaping (see the §5.2 escaping contract). Among the built-ins, `card.title`/`button.text`/`alert.text`/`badge.text` go through `$this->e()`, while `card.body` goes through `$this->raw()`.
+
+### 6.9 el
+
+```yaml
+- type: el
+  tag: div
+  x-data: '{ open: false }'
+  class: panel
+  body:
+    - type: heading
+      level: 3
+      text: '{{ user.name }}'
+    - type: text
+      text: 正文
+```
+
+`tag` is required (lowercase HTML tag name); `body` is the child node tree (may be omitted, treated as empty). Accepts any passthrough attribute. This is the only way to give attributes like `x-data` a mounting point — `text`/`if`/`each` do not emit tags themselves. Compiles to:
+
+```php
+<div x-data="{ open: false }" class="panel">
+<h3>## $user['name'] ?? '' ##</h3>
+正文
+</div>
+```
+
+## 7. Component Mechanism
+
+Built-in and custom components use the same mechanism: both are migears/template component template files, called at runtime by `$this->component('name', $data)`.
+
+**Built-in components** (shipped with the package, template files in `components/`):
+
+- `card` — card: `title`, `body`
+- `button` — button: `text`, `href` (optional; renders `<button>` when there is no href), `type` (default `default`, may be `primary`)
+- `alert` — alert bar: `type` (`info`/`success`/`warning`/`danger`, default `info`), `text`
+- `badge` — label: `text`, `type` (a field of the same name as alert's, default `default`; the value is spliced verbatim into the class, with no enum validation)
+
+The built-in component files are ordinary miGears/template components (output via `$this->e()`); users can read and copy-modify them directly.
+
+**Custom components**: the user writes PHP template files per migears/template's component conventions — `.php` for the native spelling, `.tpl.php` for `## ##` sugar syntax (`## $expr ##` escaped, `### $expr ###` verbatim output, and it goes through TemplateCompiler to leave a compiled cache; `.tpl.php` wins over a same-named `.php`) — e.g. `components/my-card.php`, referenced in YAML as `- type: component, name: my-card`. No registration is needed; `name` is the template name. This package ships a runnable custom component example `examples/components/my-card.php`, referenced by name from `examples/full-featured.page.yaml`.
+
+Runtime assembly: the page template needs to find the component files. The README explains adding the package's `components/` directory to the template search path via `$tpl->addPath()`, or copying it into the project's template directory. Resolution is decided by migears/template's `findTemplate()`: first `<path>/<name>.tpl.php`, then `<path>/<name>.php` (the `.tpl.php` pass walks all paths before the `.php` pass, so sugar-syntax files win), paths searched in reverse order of `addPath()` so later-added directories hit first — same-named files can therefore override built-in components (theme override); `name` may be a subdirectory path (`admin/table` matches `<path>/admin/table.php`); a missing file is not a compile error, and rendering throws `Component not found` only then.
+
+## 8. CLI
+
+Entry point `bin/yaml-pages` (a PHP shebang script):
+
+```
+php bin/yaml-pages compile <input> [output-dir] [--check]
+php bin/yaml-pages --help
+```
+
+| Argument | Description |
+|------|------|
+| `compile` | Subcommand. `<input>` is a `.page.yaml` file or directory; a directory is processed recursively for all `.page.yaml` files |
+| `[output-dir]` | Optional. Defaults to the same directory as the source (in-place generation); when given, output goes there keeping the same name |
+| `--check` | Validate only, write nothing |
+| `--help` | Usage description (standard help, no further subcommands) |
+
+Behavior conventions:
+
+- Output filename: `users.page.yaml` → `users.tpl.php`
+- Existing artifacts are overwritten unconditionally (derived-file semantics)
+- When processing a directory, reports per file `编译: <source> → <target>`; a failure does not interrupt the other files
+- Exit code: 0 if all succeed; 1 if any fails
+
+## 9. Error Handling
+
+All errors throw `CompileException` (extends `\RuntimeException`), which the CLI catches and prints to stderr in the format:
+
+```
+views/pages/users.page.yaml: sections.content[2]: unknown node type "foo"
+```
+
+Error categories and message requirements:
+
+| Category | Detection | Example |
+|------|------|------|
+| YAML syntax error | `yaml_parse` fails (returns false) + captured parsing warning | YAML syntax error: ... |
+| Root type error | root is not a mapping | YAML root must be a mapping (page object) |
+| Structure error | a top-level rule is violated | both layout and body specified |
+| Unknown node | type not in the vocabulary | unknown node type |
+| Missing/invalid field | required field missing, enum out of range, type mismatch | if missing when; level is 7 |
+| method type error | `form.method` is not a string (validated before any coercion, no leaked PHP warnings) | method must be string "get" or "post", got array |
+| Path error | interpolation/path grammar mismatch | invalid path "user..name" |
+| Context error | pop/content mutually exclusive etc. | column contains both pop and content; pop does not reference the row variable |
+| Literal error | `{{ }}` written in a literal field | "empty" is a literal field, {{ }} interpolation not supported |
+| Template-layer marker | `##` appears in a literal field (`label` / `name` / `tag` / `empty` / option etc.) — these fields are written verbatim into the output with no place to escape | body[0].fields[0]: "label" is a literal, "##" not allowed (template-layer syntax) |
+| Nested-structure type error | field/column type does not match the position | type must be "field" |
+| Unknown key | neither a DSL field of that node nor on the passthrough whitelist | unknown attribute "levl" |
+| Brace mangling | interpolation has `{{{` or `}}}` | interpolation cannot use three consecutive braces |
+| Root field type error | `layout` / `title` is not a string, `sections` is not a mapping | page: layout must be a string, got array |
+| List-shape error | a node tree (value of `then` / `else` / `body` / `content` / `sections`) or `fields` / `columns` is written as a mapping | sections.content: must be a node-tree array (list), currently key-value mapping; wrap it in [ ] as a list |
+| section value type error | one of `sections`' values is not a node-tree array (string / null) | sections.content: must be a node-tree array, got NULL |
+| column value type error | `column.content` is not a node-tree array, or written as a single-node mapping (not wrapped in a `-` list) | columns[0].content: must be a node-tree array (list), currently key-value mapping |
+| required type error | `field.required` is not a boolean (e.g. quoted `'true'`) | required must be a boolean, got string |
+| option text type error | an option's display text is not a string | option "a" text must be a string, got array |
+| Hyphen directive name | `x-on-*` / `x-bind-*` / `x-transition-*` (Alpine only has the colon form) | write "x-on:click" or "@click" |
+| `__` misuse | `__event` is the XML variant's spelling | write "@click" directly in YAML (quoted) |
+| Attribute without a mounting point | a passthrough attribute appears on a node that emits no tag | node "text" emits no tag, wrap the content with type: el |
+| Attribute value type error | passthrough attribute value is not a scalar | attribute "x" value must be scalar, got array |
+
+The compiler maintains a path from the root to each node (e.g. `sections.content[2]`), so errors always carry a path. When a YAML syntax error cannot be located to a node, the parser message plus the file path is output.
+
+Fail-fast: the first error is thrown; the CLI continues processing the remaining files in the directory.
+
+## 10. Module Structure
+
+```
+migears-yaml-pages/
+├── composer.json            name: migears/yaml-pages; require: php ^8.1, ext-yaml, migears/pages ^2.0
+├── README.md                bilingual (中文/English), architecture, installation, quick start, YAML reference, error handling, testing notes
+├── LICENSE
+├── bin/
+│   └── yaml-pages           CLI entry point
+├── src/
+│   ├── Compiler.php         YAML parsing layer (YAML → array IR, about 80 lines), extends the shared compiler of migears/pages
+│   └── Exception/
+│       └── CompileException.php
+├── components/              built-in component templates
+│   ├── card.php
+│   ├── button.php
+│   ├── alert.php
+│   └── badge.php
+├── examples/                full-featured examples (compilable and renderable)
+│   ├── full-featured.page.yaml   covers all declaration syntax
+│   ├── views/layout/main.php     companion minimal layout
+│   └── components/my-card.php    custom component example, referenced by name from full-featured.page.yaml
+└── tests/
+    ├── CompilerTest.php
+    ├── CliTest.php
+    ├── IntegrationTest.php
+    ├── BundledComponentsTest.php    cross-package copy consistency (validated on a monorepo checkout, skipped on standalone install)
+    └── fixtures/
+        ├── pages/           .page.yaml input samples
+        └── views/           layouts for integration tests
+```
+
+composer dependency notes: what actually runs at runtime are the generated template and the built-in components, which all depend on migears/template; the compile time depends on migears/pages' shared compiler, hence it is set as `require` (the pages package itself declares migears/template). The parsing layer uses PECL ext-yaml's `yaml_parse` (`pecl install yaml`), with no third-party composer packages.
+
+Copy note: `components/*.php`, `bin/yaml-pages`, and the other front-end `migears/xml-pages` are byte-for-byte identical (the four built-ins are byte-identical). This is a deliberately accepted cost — components must ship with the package to be found by `addPath`, and the CLI depends on each one's own parsing extension — but changing one place (e.g. badge's default type) must be mirrored in the other, and the component inventories and tests on both sides must be checked together. `tests/BundledComponentsTest.php` turns this constraint into an executable check: on a monorepo checkout it compares the component inventory and contents byte for byte, and skips on a standalone install (sibling package absent).
+
+## 11. Test Plan (TDD)
+
+Unit tests are driven by YAML strings/fixtures: feed a `.page.yaml` and assert the compiled output matches the expected `.tpl.php` exactly (or contains a given fragment).
+
+Regression tests of the shared compilation layer (base behavior of node grammar, interpolation, passthrough, validation) are handled by migears/pages' CompilerTest; this package's tests focus on YAML parsing and the overall behavior after inheritance.
+
+| Group | Cases |
+|------|------|
+| Text | text plain / single interpolation / multiple interpolation / multi-line |
+| Structure | each heading level, out-of-range level error; link href/text interpolation |
+| Conditional | if then / if then+else / `!` negation / missing when error |
+| Loop | each basic / index / nested / missing items error |
+| Form | each input enum / select options / checkbox checked / submit / invalid enum / select missing options / options on an unsupported input / method non-string reports a type error without leaking PHP warnings / required non-boolean / option text non-string |
+| Table | pop columns (`{{ row.x }}`) / content columns / empty / as default and custom / pop+content both present error / missing columns error / columns written as a mapping error |
+| Layout | layout+sections / standalone body / both present error / both missing error / title section |
+| Component | no data / data interpolation (PHP-context concatenation) / data literal |
+| Binding | path-grammar boundaries (invalid characters, empty segment, `!` only allowed on when) |
+| Negation boundary | `each.items` with `!` errors (`!` belongs only to `if.when`) |
+| Nested structures | `type: field` / `type: column` written correctly passes, written as the other errors |
+| Literal | `{{ }}` in literal fields such as `field.label`, `table.empty`, `option` errors |
+| Template-layer marker | `##` in text is escaped per template-layer syntax (output contains `\##`); a single `#` needs no escaping (shared layer, reachable from the front-ends too) |
+| Parsing | YAML syntax error errors, non-mapping root errors |
+| Passthrough | Alpine / Vue / htmx / Livewire directives and `class`/`id`/`style` passthrough; `"@click"` quoted key; `x-on:click` bare key; value escaping; interpolation inside values; scalar normalization (integer/boolean/empty value) |
+| Passthrough misuse | unknown key errors; attributes on tag-less nodes (`text`/`if`/`each`/`component`) errors; unknown root field errors |
+| el | with body / empty body / missing tag error / invalid tag error |
+| Cross-variant hints | `__click` errors with a hint to rewrite `"@click"`; `x-on-click` errors with a hint to `x-on:click` or `@click` |
+| Interpolation symbols | `{{{ a }}}` / `{{ a }}}` / `{{{ a }}` errors; adjacent `{{ a }}{{ b }}` still passes |
+| section value type | `sections`' value not an array (string/null) gives a readable error rather than a PHP TypeError |
+| column value type | `column.content` not an array, or written as a single-node mapping, gives a readable error rather than a PHP TypeError or `content[type]: 节点必须是对象` |
+| Root and list shape | `body` not an array or written as a single mapping, `layout` not a string, `sections` not a mapping; `then` / `each.body` / `fields` / `columns` written as mappings give readable errors |
+| CLI | single-file compile / directory recursion / output-dir / --check / --help / failure exit code |
+| Integration | compiled artifact renders successfully after second compilation via TemplateCompiler (interop with migears/template) |
+| Copy consistency | built-in components byte-for-byte identical to `migears/xml-pages` (validated on a monorepo checkout, skipped on standalone install) |
+
+## 12. Explicitly Not Done (future candidates)
+
+- Event handling, state management, routing — never enter
+- Custom components authored in YAML (components exist only as PHP templates)
+- Expression-language extensions (arithmetic, functions, ternaries)
+- Runtime YAML parsing / hot reload
+- HTML form controls beyond `input` (file upload, date picker, etc.)
+
+---
+
 # migears/yaml-pages 模块规格说明
 
 版本：2.0.0（草案，待评审）

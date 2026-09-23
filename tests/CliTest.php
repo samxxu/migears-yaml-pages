@@ -28,13 +28,13 @@ final class CliTest extends TestCase
         $source = $dir . '/hello.page.yaml';
         file_put_contents($source, 'body:
   - type: text
-    text: 你好');
+    text: Hello');
 
         [$output, $code] = $this->runCli(['compile', $source]);
         $this->assertSame(0, $code, $output);
 
         $this->assertFileExists($dir . '/hello.tpl.php');
-        $this->assertSame('你好', file_get_contents($dir . '/hello.tpl.php'));
+        $this->assertSame('Hello', file_get_contents($dir . '/hello.tpl.php'));
     }
 
     public function testCompileDirectory(): void
