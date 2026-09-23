@@ -367,16 +367,16 @@ final class CompilerTest extends TestCase
           x: y', 'value');
     }
 
-    public function testTableBindColumns(): void
+    public function testTablePopColumns(): void
     {
         $out = $this->compile('body:
   - type: table
     items: users
     columns:
       - label: ID
-        bind: id
+        pop: "{{ row.id }}"
       - label: 姓名
-        bind: name');
+        pop: "{{ row.name }}"');
         $this->assertSame(
             "<table>\n<thead><tr><th>ID</th><th>姓名</th></tr></thead>\n<tbody>\n<?php foreach (\$users ?? [] as \$row): ?>\n<tr>\n<td>## \$row['id'] ?? '' ##</td>\n<td>## \$row['name'] ?? '' ##</td>\n</tr>\n<?php endforeach ?>\n</tbody>\n</table>",
             $out
@@ -391,7 +391,7 @@ final class CompilerTest extends TestCase
     as: user
     columns:
       - label: ID
-        bind: id');
+        pop: "{{ user.id }}"');
         $this->assertStringContainsString('<?php foreach ($users ?? [] as $user): ?>', $out);
         $this->assertStringContainsString("## \$user['id'] ?? '' ##", $out);
     }
@@ -421,7 +421,7 @@ final class CompilerTest extends TestCase
     empty: 暂无数据
     columns:
       - label: ID
-        bind: id');
+        pop: "{{ row.id }}"');
         $this->assertStringContainsString(
             "<?php if ((\$users ?? []) === []): ?>\n<tr><td colspan=\"1\">暂无数据</td></tr>\n<?php else: ?>",
             $out
@@ -429,17 +429,17 @@ final class CompilerTest extends TestCase
         $this->assertStringContainsString('<?php endif ?>', $out);
     }
 
-    public function testTableColumnBindAndContentConflict(): void
+    public function testTableColumnPopAndContentConflict(): void
     {
         $this->expectError('body:
   - type: table
     items: users
     columns:
       - label: ID
-        bind: id
+        pop: "{{ row.id }}"
         content:
           - type: text
-            text: x', 'bind');
+            text: x', 'pop');
     }
 
     public function testTableMissingColumns(): void
@@ -631,7 +631,7 @@ sections:
     columns:
       - type: column
         label: ID
-        bind: id');
+        pop: "{{ row.id }}"');
         $this->assertStringContainsString('<th>ID</th>', $out);
 
         $this->expectError('body:
@@ -640,7 +640,7 @@ sections:
     columns:
       - type: field
         label: ID
-        bind: id', 'type 必须是 "column"');
+        pop: "{{ row.id }}"', 'type 必须是 "column"');
     }
 
     public function testFieldLabelRejectsInterpolation(): void
@@ -661,7 +661,7 @@ sections:
     empty: "{{ user.name }}"
     columns:
       - label: ID
-        bind: id', '不支持 {{ }} 插值');
+        pop: "{{ row.id }}"', '不支持 {{ }} 插值');
     }
 
     /* ---------------------------------------------------------------- *
@@ -742,7 +742,7 @@ sections:
             . "  - type: form\n    action: /s\n    x-on:submit.prevent: save()\n    fields:\n"
             . "      - type: field\n        name: q\n        label: 查\n        x-model: kw\n"
             . "  - type: table\n    items: users\n    class: grid\n    columns:\n"
-            . "      - type: column\n        label: ID\n        bind: id\n        class: w-8"
+            . "      - type: column\n        label: ID\n        pop: '{{ row.id }}'\n        class: w-8"
         );
 
         $this->assertStringContainsString('<a href="/x" @click="go()">去</a>', $out);
@@ -919,7 +919,7 @@ sections:
             'fields: 必须是字段数组（列表）'
         );
         $this->expectError(
-            "body:\n  - type: table\n    items: u\n    columns:\n      label: A\n      bind: id",
+            "body:\n  - type: table\n    items: u\n    columns:\n      label: A\n      pop: '{{ row.id }}'",
             'columns: 必须是列数组（列表）'
         );
     }
@@ -983,6 +983,24 @@ sections:
         $this->expectError(
             "body:\n  - type: form\n    action: /s\n    method: 123\n    fields:\n      - name: a\n        label: A\n",
             'method 必须是字符串 "get" 或 "post"，收到 integer'
+        );
+    }
+
+    public function testTemplateMarkerInTextIsEscaped(): void
+    {
+        // Text goes through the shared interpolation helper, which escapes the template
+        // marker, so the hashes are rendered as written instead of being evaluated.
+        self::assertStringContainsString(
+            '\##',
+            $this->compile("body:\n  - type: text\n    text: '## 说明 ##'\n")
+        );
+    }
+
+    public function testSingleHashStaysLiteral(): void
+    {
+        self::assertStringContainsString(
+            '# 一级标题',
+            $this->compile("body:\n  - type: text\n    text: '# 一级标题'\n")
         );
     }
 
