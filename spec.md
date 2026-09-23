@@ -484,6 +484,9 @@ Behavior conventions:
 - When processing a directory, reports per file `compiled: <source> -> <target>`; a failure does not interrupt the other files
 - Exit code: 0 if all succeed; 1 if any fails
 - An unrecognised `-`/`--option` is an error: it never falls through to the positional arguments, where a mistyped `--check` would silently become the output directory and turn a dry run into a real write
+- An incomplete installation is reported before any file is read, so the message appears once instead of once per page: a `Compiler` class that cannot be autoloaded (a checkout where `composer install` never ran) and a missing `ext-yaml` each write one line to stderr and exit 1
+- `--help` is answered before those checks, so help still works in an installation that cannot compile anything
+- Any `Error` raised inside the compiler is caught at the top level and reported as `fatal: <message>` with exit code 1, keeping the exit-code contract instead of PHP's uncaught-fatal 255
 
 ## 9. Error Handling
 
@@ -530,6 +533,8 @@ Error categories and message requirements:
 The compiler maintains a path from the root to each node (e.g. `sections.content[2]`), so errors always carry a path. When a YAML syntax error cannot be located to a node, the parser message plus the file path is output.
 
 Fail-fast: the first error is thrown; the CLI continues processing the remaining files in the directory.
+
+**An incomplete installation is reported rather than crashed into.** `Compiler::parse()` checks `function_exists('yaml_parse')` and raises a `CompileException` naming `ext-yaml` when it is absent: composer only validates the `ext-*` requirements at install time, and ext-yaml is a PECL install a deployment can simply lack — without the check the call itself raises an `Error` that a caller cannot catch by type. The CLI checks the same condition up front, together with the Composer autoloader, so the message is printed once rather than once per file; whatever still escapes is caught as `fatal: <message>` and reported with exit code 1.
 
 ## 10. Module Structure
 
@@ -598,6 +603,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | column value type | `column.content` not an array, or written as a single-node mapping, gives a readable error rather than a PHP TypeError or `content[type]: 节点必须是对象` |
 | Root and list shape | `body` not an array or written as a single mapping, `layout` not a string, `sections` not a mapping; `then` / `each.body` / `fields` / `columns` written as mappings give readable errors |
 | CLI | single-file compile / directory recursion / output-dir / --check / --help / unknown option rejected / failure exit code |
+| Installation | missing Composer autoloader / missing `ext-yaml` / an unexpected `Error`: one stderr line, exit code 1, no stack trace; `--help` still answers |
 | Integration | compiled artifact renders successfully after second compilation via TemplateCompiler (interop with migears/template) |
 | Copy consistency | built-in components byte-for-byte identical to `migears/xml-pages` (validated on a monorepo checkout, skipped on standalone install) |
 
@@ -1097,6 +1103,9 @@ php bin/yaml-pages --help
 - 处理目录时逐文件报告 `编译: <source> → <target>`，失败不中断其他文件
 - 退出码：全部成功 0；任一失败 1
 - 未识别的 `-`/`--option` 一律报错：它不会落到位置参数上——否则拼错的 `--check` 会被静默当成输出目录，把干跑变成真实写盘
+- 安装不完整时在任何文件被读取前报错，消息只出现一次而非每页一次：`Compiler` 无法自动加载（未跑过 `composer install` 的检出）与缺 `ext-yaml`，各自向 stderr 写一行并退出 1
+- `--help` 在上述检查之前响应，因此一个什么也编译不了的环境仍然能看帮助
+- 编译器内部抛出的任何 `Error` 都在顶层捕获并报 `fatal: <消息>`、退出码 1，维持退出码约定而不是 PHP 未捕获致命的 255
 
 ## 9. 错误处理
 
@@ -1143,6 +1152,8 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 编译器为每个节点维护从根到自身的路径（如 `sections.content[2]`），错误必带路径。YAML 语法错误无法定位到节点时，输出解析器消息 + 文件路径。
 
 失败即中止（fail-fast）：首个错误抛出，CLI 继续处理目录内其余文件。
+
+**安装不完整是报错，不是撞上致命错误。** `Compiler::parse()` 检查 `function_exists('yaml_parse')`，缺失时抛出点名 `ext-yaml` 的 `CompileException`：composer 只在安装期校验 `ext-*`，而 ext-yaml 属 PECL 安装、部署环境完全可能没有——没有这道检查，调用本身就会抛出调用方无法按类型捕获的 `Error`。CLI 再把同一条件连同 Composer autoloader 一起前置检查，使消息只打印一次而非每文件一次；其余仍然逃逸的异常统一按 `fatal: <消息>` 捕获并以退出码 1 报告。
 
 ## 10. 模块结构
 
@@ -1211,6 +1222,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | column 值类型 | `column.content` 不是数组、或写成单个节点映射时报可读错误，而不是 PHP TypeError 或 `content[type]: 节点必须是对象` |
 | 根与列表形态 | `body` 非数组或写成单个映射、`layout` 非字符串、`sections` 非映射；`then` / `each.body` / `fields` / `columns` 写成映射时报可读错误 |
 | CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 未识别选项被拒 / 失败退出码 |
+| 安装环境 | 缺 Composer autoloader / 缺 `ext-yaml` / 未预料 `Error`：stderr 一行、退出码 1、无调用栈；`--help` 仍可响应 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
 | 副本一致性 | 内置组件与 `migears/xml-pages` 逐字相同（同仓检出时校验，独立安装时跳过） |
 

@@ -31,6 +31,14 @@ class Compiler extends PagesCompiler
      */
     protected function parse(string $source): array
     {
+        // composer checks "ext-yaml" when installing, not when running, and the
+        // extension is a PECL install that a deployment can simply lack. Naming
+        // it here turns what would be an uncaught Error out of yaml_parse() into
+        // a compile error the caller can report like any other.
+        if (! function_exists('yaml_parse')) {
+            throw new CompileException('ext-yaml is not loaded; yaml_parse() is required to read a page declaration (pecl install yaml)');
+        }
+
         $errors = [];
         set_error_handler(static function (int $severity, string $message) use (&$errors): bool {
             $errors[] = $message;

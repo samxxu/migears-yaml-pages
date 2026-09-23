@@ -369,6 +369,7 @@ php bin/yaml-pages --help
 - `--check` — validate only, write nothing
 - `users.page.yaml` → `users.tpl.php`; existing outputs are overwritten unconditionally
 - Exit code: `0` all good, `1` any failure; directory mode continues with the remaining files
+- A missing Composer autoloader or `ext-yaml` is named in one line and exits `1` before any file is read, instead of ending in an uncaught fatal; `--help` answers either way
 
 ## Errors
 
@@ -761,6 +762,7 @@ php bin/yaml-pages --help
 - `--check` —— 仅校验，不写文件
 - `users.page.yaml` → `users.tpl.php`；已有产物无条件覆盖
 - 退出码：`0` 全部成功，`1` 任一失败；目录模式出错不中断
+- 缺 Composer autoloader 或 `ext-yaml` 时，在任何文件被读取前一行点名并退出 `1`，不再以未捕获致命错误收场；两种情况 `--help` 都可用
 
 ## 错误处理
 

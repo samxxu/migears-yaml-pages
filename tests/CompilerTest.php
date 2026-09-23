@@ -1046,6 +1046,51 @@ sections:
         );
     }
 
+    /**
+     * The missing-extension case the CLI preflights, reached through the library
+     * API instead: an embedding build script gets a CompileException it can
+     * report by type, not an Error that escapes as a fatal.
+     *
+     * An extension cannot be unloaded inside a running process, so the guard is
+     * exercised in a child PHP where disable_functions has made yaml_parse()
+     * vanish — which is what function_exists() answers to in either case.
+     */
+    public function testMissingYamlExtensionIsACompileErrorNotAnUncaughtError(): void
+    {
+        [$text, $code] = $this->compileInChild('yaml_parse');
+
+        $this->assertSame(0, $code, $text);
+        $this->assertStringStartsWith('CompileException: ext-yaml is not loaded', $text);
+    }
+
+    /**
+     * Compile one page in a child PHP that has $function disabled, and report
+     * what it raised.
+     *
+     * @return array{string, int}
+     */
+    private function compileInChild(string $function): array
+    {
+        $dir = sys_get_temp_dir() . '/yaml-pages-' . uniqid();
+        mkdir($dir, 0755, true);
+        $page = $dir . '/a.page.yaml';
+        file_put_contents($page, "body:\n  - type: text\n    text: A\n");
+
+        $probe = 'require $argv[1];'
+            . ' try { (new MiGears\YamlPages\Compiler())->compileFile($argv[2]); echo "no exception"; }'
+            . ' catch (MiGears\YamlPages\Exception\CompileException $e) { echo "CompileException: ", $e->getMessage(); }'
+            . ' catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(); }';
+
+        $cmd = escapeshellarg(PHP_BINARY) . ' -d ' . escapeshellarg('disable_functions=' . $function)
+            . ' -r ' . escapeshellarg($probe)
+            . ' ' . escapeshellarg(dirname(__DIR__) . '/vendor/autoload.php') . ' ' . escapeshellarg($page) . ' 2>&1';
+        $output = [];
+        $code = 0;
+        exec($cmd, $output, $code);
+
+        return [implode("\n", $output), $code];
+    }
+
     private function compile(string $yaml): string
     {
         return $this->compiler->compileSource($yaml);

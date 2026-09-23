@@ -135,17 +135,104 @@ final class CliTest extends TestCase
         $this->assertStringContainsString('unknown option: --verbose', $output);
     }
 
+    public function testMissingAutoloaderIsReportedInsteadOfAFatalError(): void
+    {
+        // A copy of the script whose autoloader lookup finds nothing: the state
+        // of a checkout where "composer install" never ran. It used to die with
+        // "Uncaught Error: Class ... not found" and exit code 255.
+        $dir = $this->tempDir();
+        $source = $dir . '/a.page.yaml';
+        file_put_contents($source, 'body:
+  - type: text
+    text: A');
+
+        [$output, $code] = $this->runCli(['compile', $source], bin: $this->binWithoutAutoloader());
+
+        $this->assertSame(1, $code);
+        $this->assertStringContainsString('composer autoloader', $output);
+        $this->assertStringNotContainsString('Uncaught Error', $output);
+        $this->assertStringNotContainsString('Stack trace', $output);
+        $this->assertFileDoesNotExist($dir . '/a.tpl.php');
+    }
+
+    public function testHelpNeedsNeitherTheAutoloaderNorTheExtensions(): void
+    {
+        // The preflight checks sit after the argument parsing on purpose: asking
+        // for help must not depend on the installation being complete.
+        [$output, $code] = $this->runCli(['--help'], bin: $this->binWithoutAutoloader());
+
+        $this->assertSame(0, $code);
+        $this->assertStringContainsString('compile', $output);
+    }
+
+    public function testMissingYamlExtensionIsReportedInsteadOfAFatalError(): void
+    {
+        $dir = $this->tempDir();
+        $source = $dir . '/a.page.yaml';
+        file_put_contents($source, 'body:
+  - type: text
+    text: A');
+
+        // An extension cannot be unloaded inside a running process, so the child
+        // disables the function instead: function_exists() answers false exactly
+        // as it does when ext-yaml was never loaded.
+        [$output, $code] = $this->runCli(['compile', $source], ini: ['disable_functions=yaml_parse']);
+
+        $this->assertSame(1, $code);
+        $this->assertStringContainsString('the yaml extension is not loaded', $output);
+        $this->assertStringNotContainsString('Uncaught Error', $output);
+        $this->assertFileDoesNotExist($dir . '/a.tpl.php');
+    }
+
+    public function testUnexpectedErrorIsReportedWithTheDocumentedExitCode(): void
+    {
+        $dir = $this->tempDir();
+        $source = $dir . '/a.page.yaml';
+        file_put_contents($source, 'body:
+  - type: text
+    text: A');
+
+        // Reading the source is the one step every successful compile takes, so
+        // disabling it stands in for any Error raised inside the compiler. It
+        // must not escape as an uncaught fatal, which prints a stack trace and
+        // reports 255 instead of the documented 1.
+        [$output, $code] = $this->runCli(['compile', $source], ini: ['disable_functions=file_get_contents']);
+
+        $this->assertSame(1, $code);
+        $this->assertStringStartsWith('fatal: ', $output);
+        $this->assertStringNotContainsString('Uncaught Error', $output);
+        $this->assertStringNotContainsString('Stack trace', $output);
+    }
+
     /**
      * @param list<string> $args
+     * @param list<string> $ini
      * @return array{string, int}
      */
-    private function runCli(array $args): array
+    private function runCli(array $args, array $ini = [], ?string $bin = null): array
     {
-        $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($this->bin) . ' ' . implode(' ', array_map('escapeshellarg', $args)) . ' 2>&1';
+        $php = escapeshellarg(PHP_BINARY);
+        foreach ($ini as $setting) {
+            $php .= ' -d ' . escapeshellarg($setting);
+        }
+        $cmd = $php . ' ' . escapeshellarg($bin ?? $this->bin) . ' ' . implode(' ', array_map('escapeshellarg', $args)) . ' 2>&1';
         $output = [];
         $code = 0;
         exec($cmd, $output, $code);
         return [implode("\n", $output), $code];
+    }
+
+    /**
+     * The script copied where its autoloader lookup finds nothing: a directory in
+     * the temp dir, with neither the package's own vendor/ nor a parent vendor/
+     * above it.
+     */
+    private function binWithoutAutoloader(): string
+    {
+        $bin = $this->tempDir() . '/bin';
+        mkdir($bin, 0755, true);
+        copy($this->bin, $bin . '/yaml-pages');
+        return $bin . '/yaml-pages';
     }
 
     private function tempDir(): string
