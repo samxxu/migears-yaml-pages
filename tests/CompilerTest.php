@@ -1021,6 +1021,10 @@ sections:
         // error pointed at nothing: no line, no cause, no document.
         $this->expectError('', 'YAML document is empty');
         $this->expectError('~', 'YAML document is empty');
+
+        // An empty *mapping* did parse, so it is the page that has nothing in it:
+        // the page-content rule is the one that has to speak, not the empty one.
+        $this->expectError('{}', 'no page content');
     }
 
     public function testScalarRootsNameTheirType(): void

@@ -593,7 +593,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | Nested structures | `type: field` / `type: column` written correctly passes, written as the other errors |
 | Literal | `{{ }}` in literal fields such as `field.label`, `table.empty`, `option` errors |
 | Template-layer marker | `##` in text is escaped per template-layer syntax (output contains `\##`); a single `#` needs no escaping (shared layer, reachable from the front-ends too) |
-| Parsing | YAML syntax error errors, non-mapping root errors |
+| Parsing | YAML syntax error errors, non-mapping root errors, an empty document is not a syntax error, and an empty mapping reaches the page-content rule |
 | Passthrough | Alpine / Vue / htmx / Livewire directives and `class`/`id`/`style` passthrough; `"@click"` quoted key; `x-on:click` bare key; value escaping; interpolation inside values; scalar normalization (integer/boolean/empty value) |
 | Passthrough misuse | unknown key errors; attributes on tag-less nodes (`text`/`if`/`each`/`component`) errors; unknown root field errors |
 | el | with body / empty body / missing tag error / invalid tag error |
@@ -1212,7 +1212,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 内嵌结构 | `type: field` / `type: column` 写对可通过，写成另一种即报错 |
 | 字面量 | `field.label`、`table.empty`、`option` 等字面量字段写 `{{ }}` 报错 |
 | 模板层标记 | 文本里出现 `##` 时按模板层语法转义（产物含 `\##`）；单个 `#` 不需转义（共享层，前端侧同样可达） |
-| 解析 | YAML 语法错误报错、根非映射报错 |
+| 解析 | YAML 语法错误报错、根非映射报错、空文档不算语法错误、空映射落到页面内容规则 |
 | 透传 | Alpine / Vue / htmx / Livewire 指令与 `class`/`id`/`style` 透传；`"@click"` 引号键；`x-on:click` 裸键；值转义；值内插值；标量归一（整数/布尔/空值） |
 | 透传误用 | 未知键报错；无标签节点（`text`/`if`/`each`/`component`）承载属性报错；页面根未知字段报错 |
 | el | 带 body / 空 body / 缺 tag 报错 / 非法 tag 报错 |
