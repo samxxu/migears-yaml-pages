@@ -520,6 +520,16 @@ body:
         $this->assertStringContainsString('title', $warnings[0]);
     }
 
+    public function testComponentNameCannotClimbOutOfTheViewRoots(): void
+    {
+        // The name reaches the engine, which joins it with the registered roots
+        // and includes what it finds: ".." would leave them.
+        $this->expectError(
+            "body:\n  - type: component\n    name: ../outside\n",
+            'must be a template name relative to the views root'
+        );
+    }
+
     public function testComponentLiteralData(): void
     {
         $out = $this->compile('body:

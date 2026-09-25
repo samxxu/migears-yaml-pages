@@ -505,6 +505,7 @@ Error categories and message requirements:
 | Empty document | the document is empty (`''` / `~` / `null`) | YAML document is empty; a page declaration must be a mapping |
 | Root type error | root is not a mapping, naming the type actually received | YAML root must be a mapping (page object), got boolean |
 | Structure error | a top-level rule is violated | both layout and body specified |
+| Template name error | `layout` / component `name` is not a relative name inside the view roots — the shared compiler's rule | page: layout "../outside" must be a template name relative to the views root; empty, "." and ".." segments are not allowed |
 | Unknown node | type not in the vocabulary | unknown node type |
 | Missing/invalid field | required field missing, enum out of range, type mismatch | if missing when; level is 7 |
 | method type error | `form.method` is not a string (validated before any coercion, no leaked PHP warnings) | method must be string "get" or "post", got array |
@@ -581,7 +582,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | Group | Cases |
 |------|------|
 | Text | text plain / single interpolation / multiple interpolation / multi-line |
-| Structure | each heading level, out-of-range level error; link href/text interpolation |
+| Structure | each heading level, out-of-range level error; link href/text interpolation; a template name (`layout` / component `name`) cannot climb out of the view roots |
 | Conditional | if then / if then+else / `!` negation / missing when error |
 | Loop | each basic / index / nested / missing items error |
 | Form | each input enum / select options / checkbox checked / submit / invalid enum / select missing options / options on an unsupported input / method non-string reports a type error without leaking PHP warnings / required non-boolean / option text non-string |
@@ -1124,6 +1125,7 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | 空文档 | 文档为空（`''` / `~` / `null`） | YAML 文档为空；页面声明必须是映射 |
 | 根类型错误 | 根不是映射，并给出实际收到的类型 | YAML 根必须是映射（页面对象），收到 boolean |
 | 结构错误 | 顶层规则违反 | 同时指定 layout 与 body |
+| 模板名错误 | `layout` / 组件 `name` 不是视图根内的相对名——共享编译器的规则 | page: layout "../outside" must be a template name relative to the views root; empty, "." and ".." segments are not allowed |
 | 未知节点 | type 不在词表 | 未知节点类型 |
 | 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | if 缺 when；level 为 7 |
 | method 类型错误 | `form.method` 不是字符串（校验先于任何强转，不泄漏 PHP 警告） | method 必须是字符串 "get" 或 "post"，收到 array |
@@ -1200,7 +1202,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 分组 | 用例 |
 |------|------|
 | 文本 | text 纯文本 / 单插值 / 多插值 / 多行 |
-| 结构 | heading 各级、越界 level 报错；link href/text 插值 |
+| 结构 | heading 各级、越界 level 报错；link href/text 插值；模板名（`layout` / 组件名）不得越出视图根 |
 | 条件 | if then / if then+else / `!` 取反 / when 缺失报错 |
 | 循环 | each 基础 / index / 嵌套 / items 缺失报错 |
 | 表单 | 各 input 枚举 / select options / checkbox checked / submit / 非法枚举 / select 缺 options / options 用在不支持的 input / method 非字符串报类型错误且不泄漏 PHP 警告 / required 非布尔 / option 文本非字符串 |
