@@ -378,7 +378,7 @@ php bin/yaml-pages --help
 Compile errors throw `MiGears\YamlPages\Exception\CompileException` with a node path, e.g.:
 
 ```
-views/pages/users.page.yaml: sections.content[2].columns[2]: 列同时指定 pop 与 content
+views/pages/users.page.yaml: sections.content[2].columns[2]: a column cannot specify both pop and content
 ```
 
 The CLI prints errors to stderr with the file name; directory mode keeps going on failure.
@@ -773,7 +773,7 @@ php bin/yaml-pages --help
 编译错误抛出 `MiGears\YamlPages\Exception\CompileException`，信息带节点路径，例如：
 
 ```
-views/pages/users.page.yaml: sections.content[2].columns[2]: 列同时指定 pop 与 content
+views/pages/users.page.yaml: sections.content[2].columns[2]: a column cannot specify both pop and content
 ```
 
 CLI 将错误输出到 stderr 并附文件名；目录模式继续处理其余文件。

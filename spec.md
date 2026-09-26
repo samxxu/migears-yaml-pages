@@ -128,7 +128,7 @@ Passthrough attribute values are first HTML-attribute-escaped (`ENT_COMPAT`, kee
 **Targeted error for hyphen forms**: `x-on-*`, `x-bind-*`, `x-transition-*` do not exist in Alpine (Alpine always uses the colon form). Because the `x-` prefix would ordinarily let these through, such spellings would be silently passed through, compile successfully, yet the directive would not work — so they are intercepted separately with advice:
 
 ```
-body[0]: unknown attribute "x-on-click"; Alpine event/binding directives use the colon form, write "x-on:click" or "@click"
+body[0]: unknown attribute "x-on-click"; Alpine event/binding directives use a colon, write "x-on:click" or "@click"
 ```
 
 ## 5. Data Binding Syntax
@@ -506,30 +506,30 @@ Error categories and message requirements:
 | Multiple documents | the stream holds more than one document (`---` separators); a page declaration is a single document | YAML stream holds 2 documents; a page declaration is a single document (remove the --- separators) |
 | Empty document | the document is empty (`''` / `~` / `null`) | YAML document is empty; a page declaration must be a mapping |
 | Root type error | root is not a mapping, naming the type actually received | YAML root must be a mapping (page object), got boolean |
-| Structure error | a top-level rule is violated | both layout and body specified |
+| Structure error | a top-level rule is violated | page: layout and body cannot be set together; use sections when layout is set |
 | Title conflict | the `title` key and a `title` section both set the page title — they fill the same section, so keeping both would discard one in silence | page: title and a "title" section both set the page title; keep one of them |
 | Unsafe environment | `yaml.decode_php` is on and `ini_set()` cannot turn it off, so the document cannot be read without risking object injection | yaml.decode_php is enabled and cannot be turned off for this parse; a page declaration must not deserialize !php/object tags (set yaml.decode_php=0 in php.ini) |
 | Template name error | `layout` / component `name` is not a relative name inside the view roots — the shared compiler's rule | page: layout "../outside" must be a template name relative to the views root; empty, "." and ".." segments are not allowed |
-| Unknown node | type not in the vocabulary | unknown node type |
-| Missing/invalid field | required field missing, enum out of range, type mismatch | if missing when; level is 7 |
-| method type error | `form.method` is not a string (validated before any coercion, no leaked PHP warnings) | method must be string "get" or "post", got array |
-| Path error | interpolation/path grammar mismatch | invalid path "user..name" |
-| Context error | pop/content mutually exclusive etc. | column contains both pop and content; pop does not reference the row variable |
-| Literal error | `{{ }}` written in a literal field | "empty" is a literal field, {{ }} interpolation not supported |
-| Template-layer marker | `##` appears in a literal field (`label` / `name` / `tag` / `empty` / option etc.) — these fields are written verbatim into the output with no place to escape | body[0].fields[0]: "label" is a literal, "##" not allowed (template-layer syntax) |
-| Nested-structure type error | field/column type does not match the position | type must be "field" |
-| Unknown key | neither a DSL field of that node nor on the passthrough whitelist | unknown attribute "levl" |
-| Brace mangling | interpolation has `{{{` or `}}}` | interpolation cannot use three consecutive braces |
+| Unknown node | type not in the vocabulary | unknown node type "foo" |
+| Missing/invalid field | required field missing, enum out of range, type mismatch | missing string field "when"; heading level must be an integer from 1 to 6, got 7 |
+| method type error | `form.method` is not a string (validated before any coercion, no leaked PHP warnings) | method must be the string "get" or "post", got array |
+| Path error | interpolation/path grammar mismatch | invalid path "user..name"; only a.b.c variable paths are supported |
+| Context error | pop/content mutually exclusive etc. | a column cannot specify both pop and content; must reference the row variable "row", got "name" |
+| Literal error | `{{ }}` written in a literal field | "empty" is a literal field and does not support {{ }} interpolation |
+| Template-layer marker | `##` appears in a literal field (`label` / `name` / `tag` / `empty` / option etc.) — these fields are written verbatim into the output with no place to escape | body[0].fields[0]: "label" is a literal and may not contain "##" (template-level syntax) |
+| Nested-structure type error | field/column type does not match the position | type must be "field" (field is a nested structure; its position decides the type) |
+| Unknown key | neither a DSL field of that node nor on the passthrough whitelist | unknown attribute "levl"; the passthrough accepts the '@event' shorthand, directive names with a colon (x-on:click / wire:click / :href, etc.), the x- / v- / hx- / data- prefixes and class / id / style / bind; check the spelling |
+| Brace mangling | interpolation has `{{{` or `}}}` | interpolation markers cannot run three braces ({{{ or }}}); write {{ path }} |
 | Root field type error | `layout` / `title` is not a string, `sections` is not a mapping | page: layout must be a string, got array |
-| List-shape error | a node tree (value of `then` / `else` / `body` / `content` / `sections`) or `fields` / `columns` is written as a mapping | sections.content: must be a node-tree array (list), currently key-value mapping; wrap it in [ ] as a list |
-| section value type error | one of `sections`' values is not a node-tree array (string / null) | sections.content: must be a node-tree array, got NULL |
-| column value type error | `column.content` is not a node-tree array, or written as a single-node mapping (not wrapped in a `-` list) | columns[0].content: must be a node-tree array (list), currently key-value mapping |
+| List-shape error | a node tree (value of `then` / `else` / `body` / `content` / `sections`) or `fields` / `columns` is written as a mapping | sections.content: must be a node tree array (a list), but got a key-value map; wrap it in [ ] to make a list |
+| section value type error | one of `sections`' values is not a node-tree array (string / null) | sections.content: must be a node tree array, got NULL |
+| column value type error | `column.content` is not a node-tree array, or written as a single-node mapping (not wrapped in a `-` list) | columns[0].content: must be a node tree array (a list), but got a key-value map; wrap it in [ ] to make a list |
 | required type error | `field.required` is not a boolean (e.g. quoted `'true'`) | required must be a boolean, got string |
 | option text type error | an option's display text is not a string | option "a" text must be a string, got array |
-| Hyphen directive name | `x-on-*` / `x-bind-*` / `x-transition-*` (Alpine only has the colon form) | write "x-on:click" or "@click" |
-| `__` misuse | `__event` is the XML variant's spelling | write "@click" directly in YAML (quoted) |
-| Attribute without a mounting point | a passthrough attribute appears on a node that emits no tag | node "text" emits no tag, wrap the content with type: el |
-| Attribute value type error | passthrough attribute value is not a scalar | attribute "x" value must be scalar, got array |
+| Hyphen directive name | `x-on-*` / `x-bind-*` / `x-transition-*` (Alpine only has the colon form) | unknown attribute "x-on-click"; Alpine event/binding directives use a colon, write "x-on:click" or "@click" |
+| `__` misuse | `__event` is the XML variant's spelling | unknown attribute "__click"; __event is the XML variant's spelling, write "@click" directly in YAML (quoted) |
+| Attribute without a mounting point | a passthrough attribute appears on a node that emits no tag | node type: text emits no tag and cannot carry attribute "class"; wrap the content in type: el |
+| Attribute value type error | passthrough attribute value is not a scalar | attribute "x" must have a scalar value, got array |
 
 **Every parsing warning is fatal.** libyaml sometimes reports a warning yet still returns a (truncated) syntax tree. Those warnings used to be discarded, so the page compiled successfully while the affected part had quietly disappeared — the typical case is the merge key: `<<: {class: box}` emits `expected a mapping for merging, but found scalar` and then returns a page without that attribute. So now **any** warning from `yaml_parse()` fails the compilation, and **all** warnings are listed rather than only the last one. A real parse failure (`yaml_parse` returns `false`) is reported as `YAML syntax error: ...`; a successful parse that warned is reported as `YAML parse error: part of the document would be dropped: ...`.
 
@@ -756,7 +756,7 @@ sections:
 **连字符形式的定向报错**：`x-on-*`、`x-bind-*`、`x-transition-*` 在 Alpine 中不存在（Alpine 一律用冒号）。由于 `x-` 前缀本会放行，这类拼写会被静默透传、编译成功而指令失效——因此单独拦截并给出建议：
 
 ```
-body[0]: 未知属性 "x-on-click"；Alpine 的事件/绑定指令用冒号形式，请写 "x-on:click" 或 "@click"
+body[0]: unknown attribute "x-on-click"; Alpine event/binding directives use a colon, write "x-on:click" or "@click"
 ```
 
 ## 5. 数据绑定语法
@@ -1122,48 +1122,48 @@ php bin/yaml-pages --help
 所有错误抛 `CompileException`（继承 `\RuntimeException`），CLI 捕获后打印到 stderr，格式：
 
 ```
-views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
+views/pages/users.page.yaml: sections.content[2]: unknown node type "foo"
 ```
 
 错误分类与信息要求：
 
 | 类别 | 检测 | 示例 |
 |------|------|------|
-| YAML 语法错误 | `yaml_parse` 返回 false——仅限真正的解析失败 | YAML 语法错误: ... |
-| YAML 解析警告 | `yaml_parse` 成功但发出了一条或多条警告——返回的语法树已缺失文档的一部分 | YAML 解析错误（文档的部分内容会被丢弃）: ... |
-| 多文档流 | 流里有多个文档（`---` 分隔）；页面声明只能是单个文档 | YAML 流包含 2 个文档；页面声明必须是单个文档（请去掉 --- 分隔符） |
-| 空文档 | 文档为空（`''` / `~` / `null`） | YAML 文档为空；页面声明必须是映射 |
-| 根类型错误 | 根不是映射，并给出实际收到的类型 | YAML 根必须是映射（页面对象），收到 boolean |
-| 结构错误 | 顶层规则违反 | 同时指定 layout 与 body |
+| YAML 语法错误 | `yaml_parse` 返回 false——仅限真正的解析失败 | YAML syntax error: ... |
+| YAML 解析警告 | `yaml_parse` 成功但发出了一条或多条警告——返回的语法树已缺失文档的一部分 | YAML parse error: part of the document would be dropped: ... |
+| 多文档流 | 流里有多个文档（`---` 分隔）；页面声明只能是单个文档 | YAML stream holds 2 documents; a page declaration is a single document (remove the --- separators) |
+| 空文档 | 文档为空（`''` / `~` / `null`） | YAML document is empty; a page declaration must be a mapping |
+| 根类型错误 | 根不是映射，并给出实际收到的类型 | YAML root must be a mapping (page object), got boolean |
+| 结构错误 | 顶层规则违反 | page: layout and body cannot be set together; use sections when layout is set |
 | title 冲突 | `title` 键与 `title` section 同时设置页面标题——两者填的是同一个 section，同时保留会静默丢弃一个 | page: title and a "title" section both set the page title; keep one of them |
 | 环境不安全 | `yaml.decode_php` 开启且 `ini_set()` 关不掉它，此时读文档无法排除对象注入 | yaml.decode_php is enabled and cannot be turned off for this parse; a page declaration must not deserialize !php/object tags (set yaml.decode_php=0 in php.ini) |
 | 模板名错误 | `layout` / 组件 `name` 不是视图根内的相对名——共享编译器的规则 | page: layout "../outside" must be a template name relative to the views root; empty, "." and ".." segments are not allowed |
-| 未知节点 | type 不在词表 | 未知节点类型 |
-| 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | if 缺 when；level 为 7 |
-| method 类型错误 | `form.method` 不是字符串（校验先于任何强转，不泄漏 PHP 警告） | method 必须是字符串 "get" 或 "post"，收到 array |
-| 路径错误 | 插值/路径文法不匹配 | 非法路径 "user..name" |
-| 上下文错误 | pop/content 互斥等 | column 同时含 pop 与 content；pop 未引用行变量 |
-| 字面量错误 | 字面量字段写了 `{{ }}` | "empty" 是字面量字段，不支持 {{ }} 插值 |
-| 模板层标记 | 字面量字段（`label` / `name` / `tag` / `empty` / option 等）里出现 `##`——这些字段原样写入产物，没有可转义的位置 | body[0].fields[0]: "label" 是字面量，不允许出现 "##"（模板层语法） |
-| 内嵌结构类型错误 | field/column 的 type 与位置不符 | type 必须是 "field" |
-| 未知键 | 既非该节点的 DSL 字段，也不在透传白名单 | 未知属性 "levl" |
-| 花括号错乱 | 插值出现 `{{{` 或 `}}}` | 插值符号不能连续三个花括号 |
-| 根字段类型错误 | `layout` / `title` 不是字符串，`sections` 不是映射 | page: layout 必须是字符串，收到 array |
-| 列表形态错误 | 节点树（`then` / `else` / `body` / `content` / `sections` 的值）或 `fields` / `columns` 被写成映射 | sections.content: 必须是节点树数组（列表），当前是键值映射；请用 [ ] 包成列表 |
-| section 值类型错误 | `sections` 的某个值不是节点树数组（字符串 / 空值） | sections.content: 必须是节点树数组，收到 NULL |
-| column 值类型错误 | `column.content` 不是节点树数组，或写成单个节点映射（未用 `-` 列表包裹） | columns[0].content: 必须是节点树数组（列表），当前是键值映射 |
-| required 类型错误 | `field.required` 不是布尔（如带引号的 `'true'`） | required 必须是布尔值，收到 string |
-| option 文本类型错误 | `option` 的显示文本不是字符串 | option "a" 的文本必须是字符串，收到 array |
-| 连字符指令名 | `x-on-*` / `x-bind-*` / `x-transition-*`（Alpine 只有冒号形式） | 请写 "x-on:click" 或 "@click" |
-| `__` 误用 | `__event` 是 XML 版的写法 | YAML 里直接写 "@click"（加引号） |
-| 属性无挂载点 | 透传属性出现在不输出标签的节点上 | 节点 "text" 不输出标签，请用 type: el 包裹内容 |
-| 属性值类型错误 | 透传属性值不是标量 | 属性 "x" 的值必须是标量，收到 array |
+| 未知节点 | type 不在词表 | unknown node type "foo" |
+| 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | missing string field "when"; heading level must be an integer from 1 to 6, got 7 |
+| method 类型错误 | `form.method` 不是字符串（校验先于任何强转，不泄漏 PHP 警告） | method must be the string "get" or "post", got array |
+| 路径错误 | 插值/路径文法不匹配 | invalid path "user..name"; only a.b.c variable paths are supported |
+| 上下文错误 | pop/content 互斥等 | a column cannot specify both pop and content; must reference the row variable "row", got "name" |
+| 字面量错误 | 字面量字段写了 `{{ }}` | "empty" is a literal field and does not support {{ }} interpolation |
+| 模板层标记 | 字面量字段（`label` / `name` / `tag` / `empty` / option 等）里出现 `##`——这些字段原样写入产物，没有可转义的位置 | body[0].fields[0]: "label" is a literal and may not contain "##" (template-level syntax) |
+| 内嵌结构类型错误 | field/column 的 type 与位置不符 | type must be "field" (field is a nested structure; its position decides the type) |
+| 未知键 | 既非该节点的 DSL 字段，也不在透传白名单 | unknown attribute "levl"; the passthrough accepts the '@event' shorthand, directive names with a colon (x-on:click / wire:click / :href, etc.), the x- / v- / hx- / data- prefixes and class / id / style / bind; check the spelling |
+| 花括号错乱 | 插值出现 `{{{` 或 `}}}` | interpolation markers cannot run three braces ({{{ or }}}); write {{ path }} |
+| 根字段类型错误 | `layout` / `title` 不是字符串，`sections` 不是映射 | page: layout must be a string, got array |
+| 列表形态错误 | 节点树（`then` / `else` / `body` / `content` / `sections` 的值）或 `fields` / `columns` 被写成映射 | sections.content: must be a node tree array (a list), but got a key-value map; wrap it in [ ] to make a list |
+| section 值类型错误 | `sections` 的某个值不是节点树数组（字符串 / 空值） | sections.content: must be a node tree array, got NULL |
+| column 值类型错误 | `column.content` 不是节点树数组，或写成单个节点映射（未用 `-` 列表包裹） | columns[0].content: must be a node tree array (a list), but got a key-value map; wrap it in [ ] to make a list |
+| required 类型错误 | `field.required` 不是布尔（如带引号的 `'true'`） | required must be a boolean, got string |
+| option 文本类型错误 | `option` 的显示文本不是字符串 | option "a" text must be a string, got array |
+| 连字符指令名 | `x-on-*` / `x-bind-*` / `x-transition-*`（Alpine 只有冒号形式） | unknown attribute "x-on-click"; Alpine event/binding directives use a colon, write "x-on:click" or "@click" |
+| `__` 误用 | `__event` 是 XML 版的写法 | unknown attribute "__click"; __event is the XML variant's spelling, write "@click" directly in YAML (quoted) |
+| 属性无挂载点 | 透传属性出现在不输出标签的节点上 | node type: text emits no tag and cannot carry attribute "class"; wrap the content in type: el |
+| 属性值类型错误 | 透传属性值不是标量 | attribute "x" must have a scalar value, got array |
 
-**任何解析警告都是致命的。** libyaml 有时会「报了警告但仍返回一棵语法树」——返回的树是残缺的。过去这些警告被丢弃，于是页面编译成功、而缺失的那部分已经悄悄消失——最典型的是 merge key：`<<: {class: box}` 会发出 `expected a mapping for merging, but found scalar` 警告，然后返回一个不含该属性的页面。因此现在 `yaml_parse()` 的**任何**警告都会导致编译失败，并且**所有**警告都会被列出，不再只保留最后一条。真解析失败（`yaml_parse` 返回 `false`）报 `YAML 语法错误: ...`；解析成功但有警告报 `YAML 解析错误（文档的部分内容会被丢弃）: ...`。
+**任何解析警告都是致命的。** libyaml 有时会「报了警告但仍返回一棵语法树」——返回的树是残缺的。过去这些警告被丢弃，于是页面编译成功、而缺失的那部分已经悄悄消失——最典型的是 merge key：`<<: {class: box}` 会发出 `expected a mapping for merging, but found scalar` 警告，然后返回一个不含该属性的页面。因此现在 `yaml_parse()` 的**任何**警告都会导致编译失败，并且**所有**警告都会被列出，不再只保留最后一条。真解析失败（`yaml_parse` 返回 `false`）报 `YAML syntax error: ...`；解析成功但有警告报 `YAML parse error: part of the document would be dropped: ...`。
 
 **一个流只能是一个文档。** `yaml_parse()` 返回流里的第一个文档、其余文档连警告都不发地丢弃，于是第二个文档会被编译成一个「悄悄丢掉分隔符之后全部内容」的页面。因此文档数量通过 `$ndocs` 出参读取——并且必须用 `$pos = -1`：默认的 `$pos = 0` 时该计数只反映「读到所请求文档为止」的数量（任何流都报 1）。读取全部文档同时意味着计数来自解析器而不是扫描源码里的 `---`：文档开头的起始标记、块标量内的 `---` 都仍是单个文档。
 
-**空文档与标量根不是语法错误。** `''`、`~`、`null` 都是合法 YAML 文档，只是不承载任何映射，因此报 `YAML 文档为空；页面声明必须是映射`，不再误报为语法错误。同理，非映射根会给出实际类型：`false`（本身就是一份完整的 YAML 文档，不是解析失败）报 `YAML 根必须是映射（页面对象），收到 boolean`，字符串根报同一条消息、收到的类型是 `string`，`YAML 语法错误` 只留给真正的解析失败。
+**空文档与标量根不是语法错误。** `''`、`~`、`null` 都是合法 YAML 文档，只是不承载任何映射，因此报 `YAML document is empty; a page declaration must be a mapping`，不再误报为语法错误。同理，非映射根会给出实际类型：`false`（本身就是一份完整的 YAML 文档，不是解析失败）报 `YAML root must be a mapping (page object), got boolean`，字符串根报同一条消息、收到的类型是 `string`，`YAML syntax error` 只留给真正的解析失败。
 
 编译器为每个节点维护从根到自身的路径（如 `sections.content[2]`），错误必带路径。YAML 语法错误无法定位到节点时，输出解析器消息 + 文件路径。
 
