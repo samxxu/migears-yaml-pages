@@ -35,7 +35,7 @@ The generated `.tpl.php` file is a derived artifact — re-running the compiler 
 composer require migears/yaml-pages
 ```
 
-Requires PHP 8.1+, the `yaml` extension and `migears/template` ^2.0.
+Requires PHP 8.1+, the `yaml` extension, and `migears/pages` ^2.0 — the shared compiler, which pulls in `migears/template` ^2.0 to render what it emits.
 
 Install the `yaml` extension on macOS:
 
@@ -127,6 +127,7 @@ Also:
 - `level: 2`, `rows: 4` parse as integers, matching the `heading.level` / `textarea.rows` type checks.
 - In double-quoted strings `\n` is a newline; use single quotes for a literal backslash-n.
 - A key containing a colon (`x-on:click:`, `wire:click:`) needs no quotes — a colon not followed by whitespace is not a mapping separator.
+- One stream, one document: a second document after a `---` separator is a compile error, because a page declaration is a single document. A leading `---` start marker does not count as one, and a `---` inside a block scalar is text.
 
 ## Front-end Framework Integration
 
@@ -428,7 +429,7 @@ MIT
 composer require migears/yaml-pages
 ```
 
-要求 PHP 8.1+、`yaml` 扩展与 `migears/template` ^2.0。
+要求 PHP 8.1+、`yaml` 扩展，以及共享编译器 `migears/pages` ^2.0——它带来渲染产物所需的 `migears/template` ^2.0。
 
 macOS 上安装 `yaml` 扩展：
 
@@ -520,6 +521,7 @@ php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
 - `level: 2`、`rows: 4` 解析为整数，与 `heading.level` / `textarea.rows` 的类型校验一致。
 - 双引号字符串中 `\n` 是换行；需要字面 `\n` 时用单引号。
 - 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后紧跟非空白字符即不构成映射分隔。
+- 一个流只能有一个文档：`---` 分隔出的第二个文档会编译报错，因为页面声明只能是单个文档。文档开头的 `---` 起始标记不算第二个文档，块标量里的 `---` 是文本。
 
 ## 前端框架集成
 

@@ -68,7 +68,6 @@ The root mapping is a single page; no `type` field is needed:
 title: 用户管理
 layout: layout/admin
 sections:
-  title: [...]
   content: [...]
 ```
 
@@ -83,7 +82,7 @@ sections:
 
 Rule: when `layout` exists, `sections` is required and `body` is disallowed; when `layout` is absent, `body` is required and `sections` is disallowed. Violating this is a compile error.
 
-The values of `body` and `sections` are all **node-tree arrays** ("nodes" for short). When `title` exists, a `title` section is auto-generated (only effective with a `layout`; without a layout it is ignored with a warning).
+The values of `body` and `sections` are all **node-tree arrays** ("nodes" for short). When `title` exists, a `title` section is auto-generated (only effective with a `layout`; without a layout it is ignored with a warning). Both spellings fill that one section, so a `title` key and a `title` section together are a compile error rather than a silent win for one of them.
 
 ### 4.2 YAML writing notes
 
@@ -105,6 +104,7 @@ Other notes:
 - In double-quoted strings `\n` is a newline; use single quotes when you need the literal two characters `\n`.
 - A key **containing** a colon (`x-on:click:`, `wire:click:`) can be written bare — a colon immediately followed by a non-whitespace character is not a mapping separator.
 - Merge keys are not supported: `<<: {class: box}` makes libyaml warn (`expected a mapping for merging, but found scalar`) and hand back a page without those attributes. Since **any** parse warning fails the compilation (§9), spell the attributes out — `class: box` — instead of merging.
+- A stream is a sequence of documents separated by `---`, but a page declaration is exactly one. A second document — a trailing separator opening an empty one included — is a compile error rather than a silent drop. A leading `---` start marker is not a separator, and `---` inside a block scalar is text.
 
 ### 4.3 Attribute passthrough
 
@@ -481,7 +481,7 @@ Behavior conventions:
 
 - Output filename: `users.page.yaml` → `users.tpl.php`
 - Existing artifacts are overwritten unconditionally (derived-file semantics)
-- When processing a directory, reports per file `compiled: <source> -> <target>`; a failure does not interrupt the other files
+- When processing a directory, reports per file `compiled: <source> -> <target>` (`validated: <source>` under `--check`); a failure does not interrupt the other files
 - Exit code: 0 if all succeed; 1 if any fails
 - An unrecognised `-`/`--option` is an error: it never falls through to the positional arguments, where a mistyped `--check` would silently become the output directory and turn a dry run into a real write
 - An incomplete installation is reported before any file is read, so the message appears once instead of once per page: a `Compiler` class that cannot be autoloaded (a checkout where `composer install` never ran) and a missing `ext-yaml` each write one line to stderr and exit 1
@@ -502,9 +502,11 @@ Error categories and message requirements:
 |------|------|------|
 | YAML syntax error | `yaml_parse` returns false — a genuine parse failure only | YAML syntax error: ... |
 | YAML parse warning | `yaml_parse` succeeds but emits one or more warnings — the tree it returned is missing part of the document | YAML parse error: part of the document would be dropped: ... |
+| Multiple documents | the stream holds more than one document (`---` separators); a page declaration is a single document | YAML stream holds 2 documents; a page declaration is a single document (remove the --- separators) |
 | Empty document | the document is empty (`''` / `~` / `null`) | YAML document is empty; a page declaration must be a mapping |
 | Root type error | root is not a mapping, naming the type actually received | YAML root must be a mapping (page object), got boolean |
 | Structure error | a top-level rule is violated | both layout and body specified |
+| Title conflict | the `title` key and a `title` section both set the page title — they fill the same section, so keeping both would discard one in silence | page: title and a "title" section both set the page title; keep one of them |
 | Template name error | `layout` / component `name` is not a relative name inside the view roots — the shared compiler's rule | page: layout "../outside" must be a template name relative to the views root; empty, "." and ".." segments are not allowed |
 | Unknown node | type not in the vocabulary | unknown node type |
 | Missing/invalid field | required field missing, enum out of range, type mismatch | if missing when; level is 7 |
@@ -528,6 +530,8 @@ Error categories and message requirements:
 | Attribute value type error | passthrough attribute value is not a scalar | attribute "x" value must be scalar, got array |
 
 **Every parsing warning is fatal.** libyaml sometimes reports a warning yet still returns a (truncated) syntax tree. Those warnings used to be discarded, so the page compiled successfully while the affected part had quietly disappeared — the typical case is the merge key: `<<: {class: box}` emits `expected a mapping for merging, but found scalar` and then returns a page without that attribute. So now **any** warning from `yaml_parse()` fails the compilation, and **all** warnings are listed rather than only the last one. A real parse failure (`yaml_parse` returns `false`) is reported as `YAML syntax error: ...`; a successful parse that warned is reported as `YAML parse error: part of the document would be dropped: ...`.
+
+**A stream is one document.** `yaml_parse()` returns a stream's first document and drops the rest without a warning, so a second document would compile as a page that silently lost everything after the separator. The document count is therefore read through the `$ndocs` out-parameter — and with `$pos = -1`, because with the default `$pos = 0` that counter reports only the documents read up to the requested one (it says 1 for any stream). Reading every document also means the count comes from the parser rather than from scanning the source for `---`: a start marker before the only document, or `---` inside a block scalar, stays one document.
 
 **Empty and scalar documents are not syntax errors.** `''`, `~` and `null` are valid YAML documents that carry no mapping, so they report `YAML document is empty; a page declaration must be a mapping` instead of a syntax error. For the same reason a non-mapping root names the type it actually got: `false` (a complete YAML document in its own right, not a parse failure) reports `YAML root must be a mapping (page object), got boolean`, a string root reports `... got string`, and `YAML syntax error` stays reserved for genuine parse failures.
 
@@ -587,7 +591,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | Loop | each basic / index / nested / missing items error |
 | Form | each input enum / select options / checkbox checked / submit / invalid enum / select missing options / options on an unsupported input / method non-string reports a type error without leaking PHP warnings / required non-boolean / option text non-string |
 | Table | pop columns (`{{ row.x }}`) / content columns / empty / as default and custom / pop+content both present error / missing columns error / columns written as a mapping error |
-| Layout | layout+sections / standalone body / both present error / both missing error / title section |
+| Layout | layout+sections / standalone body / both present error / both missing error / title section / title key plus title section error |
 | Component | no data / data interpolation (PHP-context concatenation) / data literal |
 | Binding | path-grammar boundaries (invalid characters, empty segment, `!` only allowed on when) |
 | Negation boundary | `each.items` with `!` errors (`!` belongs only to `if.when`) |
@@ -595,6 +599,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | Literal | `{{ }}` in literal fields such as `field.label`, `table.empty`, `option` errors |
 | Template-layer marker | `##` in text is escaped per template-layer syntax (output contains `\##`); a single `#` needs no escaping (shared layer, reachable from the front-ends too) |
 | Parsing | YAML syntax error errors, non-mapping root errors, an empty document is not a syntax error, and an empty mapping reaches the page-content rule |
+| Document count | a second document (`---`) errors, a trailing separator errors; a leading `---` start marker and a `---` inside a block scalar stay one document |
 | Passthrough | Alpine / Vue / htmx / Livewire directives and `class`/`id`/`style` passthrough; `"@click"` quoted key; `x-on:click` bare key; value escaping; interpolation inside values; scalar normalization (integer/boolean/empty value) |
 | Passthrough misuse | unknown key errors; attributes on tag-less nodes (`text`/`if`/`each`/`component`) errors; unknown root field errors |
 | el | with body / empty body / missing tag error / invalid tag error |
@@ -688,7 +693,6 @@ yaml-pages 是 miGears 框架的可选配套模块：一种基于 YAML 的声明
 title: 用户管理
 layout: layout/admin
 sections:
-  title: [...]
   content: [...]
 ```
 
@@ -703,7 +707,7 @@ sections:
 
 规则：`layout` 存在时 `sections` 必填、`body` 禁用；`layout` 不存在时 `body` 必填、`sections` 禁用。违反即编译错误。
 
-`body` 与 `sections` 值均为**节点树数组**（下称"节点"）。`title` 存在时自动生成一个 `title` section（仅在有 `layout` 时生效，无 layout 时忽略并告警）。
+`body` 与 `sections` 值均为**节点树数组**（下称"节点"）。`title` 存在时自动生成一个 `title` section（仅在有 `layout` 时生效，无 layout 时忽略并告警）。两种写法填的是同一个 section，因此 `title` 键与 `title` section 同时存在属编译错误，而不是静默让其中一方胜出。
 
 ### 4.2 YAML 编写注意
 
@@ -725,6 +729,7 @@ sections:
 - 双引号字符串中 `\n` 是换行；需要字面 `\n` 两个字符时用单引号。
 - 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后面紧跟非空白字符即不构成映射分隔。
 - 不支持 merge key：`<<: {class: box}` 会让 libyaml 发出 `expected a mapping for merging, but found scalar` 警告，并交回一个不含这些属性的页面。由于**任何**解析警告都会导致编译失败（§9），请把属性逐个写出来（`class: box`），不要用合并。
+- 流是一串以 `---` 分隔的文档，而页面声明只能是其中一个。出现第二个文档——含行尾分隔符开启的空文档——一律编译报错，而不是悄悄丢弃。文档开头的 `---` 起始标记不是分隔符，块标量里的 `---` 是文本。
 
 ### 4.3 属性透传
 
@@ -1101,7 +1106,7 @@ php bin/yaml-pages --help
 
 - 输出文件名：`users.page.yaml` → `users.tpl.php`
 - 已存在的产物无条件覆盖（派生文件语义）
-- 处理目录时逐文件报告 `编译: <source> → <target>`，失败不中断其他文件
+- 处理目录时逐文件报告 `compiled: <source> -> <target>`（`--check` 下为 `validated: <source>`），失败不中断其他文件
 - 退出码：全部成功 0；任一失败 1
 - 未识别的 `-`/`--option` 一律报错：它不会落到位置参数上——否则拼错的 `--check` 会被静默当成输出目录，把干跑变成真实写盘
 - 安装不完整时在任何文件被读取前报错，消息只出现一次而非每页一次：`Compiler` 无法自动加载（未跑过 `composer install` 的检出）与缺 `ext-yaml`，各自向 stderr 写一行并退出 1
@@ -1122,9 +1127,11 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 |------|------|------|
 | YAML 语法错误 | `yaml_parse` 返回 false——仅限真正的解析失败 | YAML 语法错误: ... |
 | YAML 解析警告 | `yaml_parse` 成功但发出了一条或多条警告——返回的语法树已缺失文档的一部分 | YAML 解析错误（文档的部分内容会被丢弃）: ... |
+| 多文档流 | 流里有多个文档（`---` 分隔）；页面声明只能是单个文档 | YAML 流包含 2 个文档；页面声明必须是单个文档（请去掉 --- 分隔符） |
 | 空文档 | 文档为空（`''` / `~` / `null`） | YAML 文档为空；页面声明必须是映射 |
 | 根类型错误 | 根不是映射，并给出实际收到的类型 | YAML 根必须是映射（页面对象），收到 boolean |
 | 结构错误 | 顶层规则违反 | 同时指定 layout 与 body |
+| title 冲突 | `title` 键与 `title` section 同时设置页面标题——两者填的是同一个 section，同时保留会静默丢弃一个 | page: title and a "title" section both set the page title; keep one of them |
 | 模板名错误 | `layout` / 组件 `name` 不是视图根内的相对名——共享编译器的规则 | page: layout "../outside" must be a template name relative to the views root; empty, "." and ".." segments are not allowed |
 | 未知节点 | type 不在词表 | 未知节点类型 |
 | 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | if 缺 when；level 为 7 |
@@ -1148,6 +1155,8 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | 属性值类型错误 | 透传属性值不是标量 | 属性 "x" 的值必须是标量，收到 array |
 
 **任何解析警告都是致命的。** libyaml 有时会「报了警告但仍返回一棵语法树」——返回的树是残缺的。过去这些警告被丢弃，于是页面编译成功、而缺失的那部分已经悄悄消失——最典型的是 merge key：`<<: {class: box}` 会发出 `expected a mapping for merging, but found scalar` 警告，然后返回一个不含该属性的页面。因此现在 `yaml_parse()` 的**任何**警告都会导致编译失败，并且**所有**警告都会被列出，不再只保留最后一条。真解析失败（`yaml_parse` 返回 `false`）报 `YAML 语法错误: ...`；解析成功但有警告报 `YAML 解析错误（文档的部分内容会被丢弃）: ...`。
+
+**一个流只能是一个文档。** `yaml_parse()` 返回流里的第一个文档、其余文档连警告都不发地丢弃，于是第二个文档会被编译成一个「悄悄丢掉分隔符之后全部内容」的页面。因此文档数量通过 `$ndocs` 出参读取——并且必须用 `$pos = -1`：默认的 `$pos = 0` 时该计数只反映「读到所请求文档为止」的数量（任何流都报 1）。读取全部文档同时意味着计数来自解析器而不是扫描源码里的 `---`：文档开头的起始标记、块标量内的 `---` 都仍是单个文档。
 
 **空文档与标量根不是语法错误。** `''`、`~`、`null` 都是合法 YAML 文档，只是不承载任何映射，因此报 `YAML 文档为空；页面声明必须是映射`，不再误报为语法错误。同理，非映射根会给出实际类型：`false`（本身就是一份完整的 YAML 文档，不是解析失败）报 `YAML 根必须是映射（页面对象），收到 boolean`，字符串根报同一条消息、收到的类型是 `string`，`YAML 语法错误` 只留给真正的解析失败。
 
@@ -1207,7 +1216,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 循环 | each 基础 / index / 嵌套 / items 缺失报错 |
 | 表单 | 各 input 枚举 / select options / checkbox checked / submit / 非法枚举 / select 缺 options / options 用在不支持的 input / method 非字符串报类型错误且不泄漏 PHP 警告 / required 非布尔 / option 文本非字符串 |
 | 表格 | pop 列（`{{ row.x }}`）/ content 列 / empty / as 默认与自定义 / pop+content 同存报错 / columns 缺失报错 / columns 写成映射报错 |
-| 布局 | layout+sections / body 独立 / 两者同存报错 / 双缺失报错 / title section |
+| 布局 | layout+sections / body 独立 / 两者同存报错 / 双缺失报错 / title section / title 键与 title section 同存报错 |
 | 组件 | 无 data / data 插值（PHP 上下文拼接）/ data 字面量 |
 | 绑定 | 路径文法边界（非法字符、空段、`!` 只允许 when） |
 | 取反边界 | `each.items` 带 `!` 报错（`!` 只属于 `if.when`） |
@@ -1215,6 +1224,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 字面量 | `field.label`、`table.empty`、`option` 等字面量字段写 `{{ }}` 报错 |
 | 模板层标记 | 文本里出现 `##` 时按模板层语法转义（产物含 `\##`）；单个 `#` 不需转义（共享层，前端侧同样可达） |
 | 解析 | YAML 语法错误报错、根非映射报错、空文档不算语法错误、空映射落到页面内容规则 |
+| 文档数量 | 第二个文档（`---`）报错、行尾分隔符报错；文档开头的 `---` 起始标记与块标量内的 `---` 仍算单个文档 |
 | 透传 | Alpine / Vue / htmx / Livewire 指令与 `class`/`id`/`style` 透传；`"@click"` 引号键；`x-on:click` 裸键；值转义；值内插值；标量归一（整数/布尔/空值） |
 | 透传误用 | 未知键报错；无标签节点（`text`/`if`/`each`/`component`）承载属性报错；页面根未知字段报错 |
 | el | 带 body / 空 body / 缺 tag 报错 / 非法 tag 报错 |

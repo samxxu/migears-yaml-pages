@@ -1,9 +1,6 @@
 title: User management
 layout: layout/main
 sections:
-  title:
-    - type: text
-      text: User management
   content:
     - type: heading
       level: 2

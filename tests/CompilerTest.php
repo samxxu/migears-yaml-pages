@@ -486,6 +486,24 @@ sections:
         );
     }
 
+    public function testTitleAndTitleSectionConflictRejected(): void
+    {
+        // Both fill the same section, so one used to win in silence — invisible in
+        // the fixtures, which wrote the same text in both places.
+        $this->expectError(
+            'title: T
+layout: layout/main
+sections:
+  title:
+    - type: text
+      text: T
+  content:
+    - type: text
+      text: C',
+            'title and a "title" section both set the page title'
+        );
+    }
+
     public function testLayoutAndBodyConflict(): void
     {
         $this->expectError('layout: layout/admin
@@ -590,6 +608,50 @@ body:
     public function testYamlSyntaxError(): void
     {
         $this->expectError('body: [', 'YAML');
+    }
+
+    public function testSecondDocumentRejected(): void
+    {
+        // A stream is a sequence of documents, but a page declaration is one.
+        // Compiling the first and dropping the second used to be silent.
+        $this->expectError(
+            "body:\n  - type: text\n    text: A\n---\nbody:\n  - type: text\n    text: B",
+            'holds 2 documents'
+        );
+    }
+
+    public function testTrailingSeparatorRejected(): void
+    {
+        // A trailing '---' opens a second, empty document: nothing would render
+        // from it, so the page used to compile with the separator unnoticed.
+        $this->expectError("body:\n  - type: text\n    text: A\n---\n", 'holds 2 documents');
+    }
+
+    public function testThreeDocumentsRejected(): void
+    {
+        // The count is reported as the parser sees it, not capped at two.
+        $this->expectError("body:\n  - type: text\n    text: A\n---\na: 1\n---\nb: 2", 'holds 3 documents');
+    }
+
+    public function testLeadingDocumentStartMarkerIsOneDocument(): void
+    {
+        // '---' before the only document is a start marker, not a separator.
+        $out = $this->compile("---\nbody:\n  - type: text\n    text: A\n");
+        $this->assertSame('A', $out);
+    }
+
+    public function testSeparatorInsideBlockScalarIsNotASecondDocument(): void
+    {
+        // '---' inside a block scalar is text. Counting documents with the parser
+        // rather than scanning the source is what keeps this a single document.
+        $out = $this->compile("body:\n  - type: text\n    text: |\n      ---\n      not a boundary\n");
+        $this->assertStringContainsString('---', $out);
+    }
+
+    public function testDocumentEndMarkerIsOneDocument(): void
+    {
+        $out = $this->compile("body:\n  - type: text\n    text: A\n...\n");
+        $this->assertSame('A', $out);
     }
 
     public function testErrorCarriesNodePath(): void

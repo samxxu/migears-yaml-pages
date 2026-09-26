@@ -40,12 +40,18 @@ class Compiler extends PagesCompiler
         }
 
         $errors = [];
+        $ndocs = 0;
         set_error_handler(static function (int $severity, string $message) use (&$errors): bool {
             $errors[] = $message;
             return true;
         });
         try {
-            $page = yaml_parse($source);
+            // -1 asks for every document in the stream, which is the only way to
+            // learn how many there are: $ndocs counts the documents read up to the
+            // requested one, so asking for the first (the default) reports 1 no
+            // matter what follows a separator — and everything after the first
+            // '---' is dropped without a word.
+            $documents = yaml_parse($source, -1, $ndocs);
         } finally {
             restore_error_handler();
         }
@@ -58,11 +64,27 @@ class Compiler extends PagesCompiler
         // Keeping every warning also means a failure names all of them instead of
         // only the last one.
         if ($errors !== []) {
-            $prefix = $page === false
+            $prefix = $documents === false
                 ? 'YAML syntax error'
                 : 'YAML parse error: part of the document would be dropped';
             throw new CompileException($prefix . ': ' . implode('; ', $errors));
         }
+
+        // A stream may hold several documents ('---' separated), but a page
+        // declaration is exactly one of them. Compiling the first and dropping the
+        // rest is the silent loss this frontend refuses everywhere else, so the
+        // count is checked — including the trailing-separator case, where the
+        // second document is empty and nothing would render from it.
+        if ($ndocs > 1) {
+            throw new CompileException(
+                "YAML stream holds {$ndocs} documents; a page declaration is a single document (remove the --- separators)"
+            );
+        }
+
+        // pos -1 wraps the stream's documents in a list; with one document that is
+        // a one-element list. A document handed back unwrapped is left as it is
+        // rather than assumed away.
+        $page = is_array($documents) && array_is_list($documents) ? ($documents[0] ?? null) : $documents;
 
         if ($page === null) {
             throw new CompileException('YAML document is empty; a page declaration must be a mapping');
