@@ -693,6 +693,29 @@ body:
         $this->assertStringNotContainsString("' content '", $out);
     }
 
+    public function testReservedLoopVariableNamesAreRejectedFromHereToo(): void
+    {
+        // The rule is the shared compiler's, and YAML reaches it through its own
+        // spelling of the keys: a loop variable is written into the artefact as a
+        // real PHP variable, so "$this" (which PHP will not re-assign) and a
+        // superglobal name (which would be shadowed for the rest of the render)
+        // cannot be used for one.
+        $this->expectError(
+            "body:\n  - type: each\n    items: users\n    as: this\n    body:\n      - type: text\n        text: a",
+            'each as must not be "this"'
+        );
+        $this->expectError(
+            "body:\n  - type: each\n    items: users\n    as: u\n    index: _SERVER\n    body:\n      - type: text\n        text: a",
+            'each index must not be "_SERVER"'
+        );
+        // A name that only looks like a superglobal stays legal: $_GLOBALS is an
+        // ordinary variable, and the check is the name, not the shape of it.
+        self::assertStringContainsString(
+            'as $_GLOBALS => $u',
+            $this->compile("body:\n  - type: each\n    items: users\n    as: u\n    index: _GLOBALS\n    body:\n      - type: text\n        text: a")
+        );
+    }
+
     public function testDuplicateMappingKeysAreLastOneWinsAndUndetected(): void
     {
         // libyaml merges duplicate keys before PHP sees the document and reports
