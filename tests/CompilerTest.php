@@ -1140,12 +1140,49 @@ sections:
     }
 
     /**
+     * `yaml.decode_php` makes `!php/object` run unserialize() on whatever the
+     * document contains, so a declaration could carry an object into the compiler.
+     * The directive is forced off for the parse and put back afterwards — the
+     * payload stays text, and the host's own setting survives the call.
+     */
+    public function testPhpObjectTagIsNotDeserialized(): void
+    {
+        $previous = ini_get('yaml.decode_php');
+        ini_set('yaml.decode_php', '1');
+
+        try {
+            $out = $this->compile("body:\n  - type: text\n    text: !php/object \"O:8:\\\"stdClass\\\":0:{}\"");
+        } finally {
+            $restored = ini_get('yaml.decode_php');
+            ini_set('yaml.decode_php', (string) $previous);
+        }
+
+        $this->assertStringContainsString('O:8:', $out);
+        $this->assertSame('1', $restored, 'the host setting is left as it was found');
+    }
+
+    /**
+     * An environment that keeps the directive on *and* blocks ini_set() cannot be
+     * read safely, so it is refused with a message naming the directive instead of
+     * parsing anyway.
+     */
+    public function testUndisableableDecodePhpIsRefused(): void
+    {
+        [$text, $code] = $this->compileInChild('ini_set', ['yaml.decode_php=1']);
+
+        $this->assertSame(0, $code, $text);
+        $this->assertStringStartsWith('CompileException: yaml.decode_php is enabled', $text);
+    }
+
+    /**
      * Compile one page in a child PHP that has $function disabled, and report
-     * what it raised.
+     * what it raised. Extra `-d` settings cover the guards that depend on the
+     * environment rather than on the page.
      *
+     * @param list<string> $settings
      * @return array{string, int}
      */
-    private function compileInChild(string $function): array
+    private function compileInChild(string $function, array $settings = []): array
     {
         $dir = sys_get_temp_dir() . '/yaml-pages-' . uniqid();
         mkdir($dir, 0755, true);
@@ -1157,8 +1194,11 @@ sections:
             . ' catch (MiGears\YamlPages\Exception\CompileException $e) { echo "CompileException: ", $e->getMessage(); }'
             . ' catch (Throwable $e) { echo get_class($e), ": ", $e->getMessage(); }';
 
-        $cmd = escapeshellarg(PHP_BINARY) . ' -d ' . escapeshellarg('disable_functions=' . $function)
-            . ' -r ' . escapeshellarg($probe)
+        $cmd = escapeshellarg(PHP_BINARY) . ' -d ' . escapeshellarg('disable_functions=' . $function);
+        foreach ($settings as $setting) {
+            $cmd .= ' -d ' . escapeshellarg($setting);
+        }
+        $cmd .= ' -r ' . escapeshellarg($probe)
             . ' ' . escapeshellarg(dirname(__DIR__) . '/vendor/autoload.php') . ' ' . escapeshellarg($page) . ' 2>&1';
         $output = [];
         $code = 0;

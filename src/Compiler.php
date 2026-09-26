@@ -39,6 +39,26 @@ class Compiler extends PagesCompiler
             throw new CompileException('ext-yaml is not loaded; yaml_parse() is required to read a page declaration (pecl install yaml)');
         }
 
+        // `yaml.decode_php` makes a `!php/object` tag call unserialize() on whatever
+        // the document contains. A page declaration is data — and machine-written
+        // declarations are this module's whole scenario — so that is an
+        // object-injection vector rather than a feature. The directive is turned
+        // off for this parse and restored afterwards, which makes the compiler safe
+        // whatever the host configured, and makes the ext-yaml version that
+        // defaults it to on irrelevant. Guarded because an environment that keeps
+        // the directive on cannot be trusted to read the document at all.
+        $decodePhp = ini_get('yaml.decode_php');
+        $forcedDecodePhp = false;
+        if (is_string($decodePhp) && trim($decodePhp) !== '' && (int) $decodePhp !== 0) {
+            if (! function_exists('ini_set') || ini_set('yaml.decode_php', '0') === false) {
+                throw new CompileException(
+                    'yaml.decode_php is enabled and cannot be turned off for this parse; a page declaration must not '
+                    . 'deserialize !php/object tags (set yaml.decode_php=0 in php.ini)'
+                );
+            }
+            $forcedDecodePhp = true;
+        }
+
         $errors = [];
         $ndocs = 0;
         set_error_handler(static function (int $severity, string $message) use (&$errors): bool {
@@ -54,6 +74,9 @@ class Compiler extends PagesCompiler
             $documents = yaml_parse($source, -1, $ndocs);
         } finally {
             restore_error_handler();
+            if ($forcedDecodePhp) {
+                ini_set('yaml.decode_php', (string) $decodePhp);
+            }
         }
 
         // A warning that still leaves a tree behind is the dangerous case: the

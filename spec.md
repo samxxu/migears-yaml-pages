@@ -103,6 +103,7 @@ Other notes:
 - `level: 2` and `rows: 4` parse as integers, consistent with the `heading.level` and `textarea.rows` type checks.
 - In double-quoted strings `\n` is a newline; use single quotes when you need the literal two characters `\n`.
 - A key **containing** a colon (`x-on:click:`, `wire:click:`) can be written bare — a colon immediately followed by a non-whitespace character is not a mapping separator.
+- `!php/object` and the other `!php/` tags are **never decoded**: the compiler turns `yaml.decode_php` off for its own parse and restores the host's setting afterwards, so a declaration cannot carry an object into the compiler whatever php.ini says. The tag's value arrives as plain text. An environment that keeps the directive on and blocks `ini_set()` cannot be read safely and is refused with a message naming the directive.
 - Merge keys are not supported: `<<: {class: box}` makes libyaml warn (`expected a mapping for merging, but found scalar`) and hand back a page without those attributes. Since **any** parse warning fails the compilation (§9), spell the attributes out — `class: box` — instead of merging.
 - A stream is a sequence of documents separated by `---`, but a page declaration is exactly one. A second document — a trailing separator opening an empty one included — is a compile error rather than a silent drop. A leading `---` start marker is not a separator, and `---` inside a block scalar is text.
 
@@ -507,6 +508,7 @@ Error categories and message requirements:
 | Root type error | root is not a mapping, naming the type actually received | YAML root must be a mapping (page object), got boolean |
 | Structure error | a top-level rule is violated | both layout and body specified |
 | Title conflict | the `title` key and a `title` section both set the page title — they fill the same section, so keeping both would discard one in silence | page: title and a "title" section both set the page title; keep one of them |
+| Unsafe environment | `yaml.decode_php` is on and `ini_set()` cannot turn it off, so the document cannot be read without risking object injection | yaml.decode_php is enabled and cannot be turned off for this parse; a page declaration must not deserialize !php/object tags (set yaml.decode_php=0 in php.ini) |
 | Template name error | `layout` / component `name` is not a relative name inside the view roots — the shared compiler's rule | page: layout "../outside" must be a template name relative to the views root; empty, "." and ".." segments are not allowed |
 | Unknown node | type not in the vocabulary | unknown node type |
 | Missing/invalid field | required field missing, enum out of range, type mismatch | if missing when; level is 7 |
@@ -573,7 +575,7 @@ migears-yaml-pages/
         └── views/           layouts for integration tests
 ```
 
-composer dependency notes: what actually runs at runtime are the generated template and the built-in components, which all depend on migears/template; the compile time depends on migears/pages' shared compiler, hence it is set as `require` (the pages package itself declares migears/template). The parsing layer uses PECL ext-yaml's `yaml_parse` (`pecl install yaml`), with no third-party composer packages.
+composer dependency notes: what actually runs at runtime are the generated template and the built-in components, which all depend on migears/template; the compile time depends on migears/pages' shared compiler, hence it is set as `require` (the pages package itself declares migears/template). The parsing layer uses PECL ext-yaml's `yaml_parse` (`pecl install yaml`), with no third-party composer packages. The `ext-yaml` version is left open on purpose: which default `yaml.decode_php` ships with decides nothing, because the compiler turns the directive off for its own parse.
 
 Copy note: `components/*.php`, `bin/yaml-pages`, and the other front-end `migears/xml-pages` are byte-for-byte identical (the four built-ins are byte-identical). This is a deliberately accepted cost — components must ship with the package to be found by `addPath`, and the CLI depends on each one's own parsing extension — but changing one place (e.g. badge's default type) must be mirrored in the other, and the component inventories and tests on both sides must be checked together. `tests/BundledComponentsTest.php` turns this constraint into an executable check: on a monorepo checkout it compares the component inventory and contents byte for byte, and skips on a standalone install (sibling package absent).
 
@@ -610,6 +612,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | Root and list shape | `body` not an array or written as a single mapping, `layout` not a string, `sections` not a mapping; `then` / `each.body` / `fields` / `columns` written as mappings give readable errors |
 | CLI | single-file compile / directory recursion / output-dir / --check / --help / unknown option rejected / failure exit code |
 | Installation | missing Composer autoloader / missing `ext-yaml` / an unexpected `Error`: one stderr line, exit code 1, no stack trace; `--help` still answers |
+| untrusted YAML | `!php/object` is not deserialized even with `yaml.decode_php=1` (the directive is forced off for the parse and the host setting restored); an environment that keeps it on without `ini_set()` is refused by name |
 | Integration | compiled artifact renders successfully after second compilation via TemplateCompiler (interop with migears/template) |
 | Copy consistency | built-in components byte-for-byte identical to `migears/xml-pages` (validated on a monorepo checkout, skipped on standalone install) |
 
@@ -728,6 +731,7 @@ sections:
 - `level: 2`、`rows: 4` 解析为整数，与 `heading.level`、`textarea.rows` 的类型校验一致。
 - 双引号字符串中 `\n` 是换行；需要字面 `\n` 两个字符时用单引号。
 - 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后面紧跟非空白字符即不构成映射分隔。
+- `!php/object` 及其它 `!php/` 标签**永不解码**：编译器在自身解析期间关闭 `yaml.decode_php`，结束后还原宿主设置，因此无论 php.ini 怎么设，声明都无法把对象夹带进编译器；标签的值按纯文本处理。若环境保持该指令开启且禁用了 `ini_set()`，文档无法被安全读取，直接报错并点名该指令。
 - 不支持 merge key：`<<: {class: box}` 会让 libyaml 发出 `expected a mapping for merging, but found scalar` 警告，并交回一个不含这些属性的页面。由于**任何**解析警告都会导致编译失败（§9），请把属性逐个写出来（`class: box`），不要用合并。
 - 流是一串以 `---` 分隔的文档，而页面声明只能是其中一个。出现第二个文档——含行尾分隔符开启的空文档——一律编译报错，而不是悄悄丢弃。文档开头的 `---` 起始标记不是分隔符，块标量里的 `---` 是文本。
 
@@ -1132,6 +1136,7 @@ views/pages/users.page.yaml: sections.content[2]: 未知节点类型 "foo"
 | 根类型错误 | 根不是映射，并给出实际收到的类型 | YAML 根必须是映射（页面对象），收到 boolean |
 | 结构错误 | 顶层规则违反 | 同时指定 layout 与 body |
 | title 冲突 | `title` 键与 `title` section 同时设置页面标题——两者填的是同一个 section，同时保留会静默丢弃一个 | page: title and a "title" section both set the page title; keep one of them |
+| 环境不安全 | `yaml.decode_php` 开启且 `ini_set()` 关不掉它，此时读文档无法排除对象注入 | yaml.decode_php is enabled and cannot be turned off for this parse; a page declaration must not deserialize !php/object tags (set yaml.decode_php=0 in php.ini) |
 | 模板名错误 | `layout` / 组件 `name` 不是视图根内的相对名——共享编译器的规则 | page: layout "../outside" must be a template name relative to the views root; empty, "." and ".." segments are not allowed |
 | 未知节点 | type 不在词表 | 未知节点类型 |
 | 字段缺失/非法 | 必填缺失、枚举越界、类型不符 | if 缺 when；level 为 7 |
@@ -1198,7 +1203,7 @@ migears-yaml-pages/
         └── views/           集成测试用布局
 ```
 
-composer 依赖说明：运行期实际执行的是生成的模板与内置组件，均依赖 migears/template；编译期依赖 migears/pages 的共享编译器，故设为 `require`（pages 包自身声明 migears/template）。解析层使用 PECL ext-yaml 的 `yaml_parse`（`pecl install yaml`），无 composer 第三方包。
+composer 依赖说明：运行期实际执行的是生成的模板与内置组件，均依赖 migears/template；编译期依赖 migears/pages 的共享编译器，故设为 `require`（pages 包自身声明 migears/template）。解析层使用 PECL ext-yaml 的 `yaml_parse`（`pecl install yaml`），无 composer 第三方包。`ext-yaml` 的版本刻意保持开放：它自带的 `yaml.decode_php` 默认值不再决定安全性，因为编译器在自身解析期间会关闭该指令。
 
 复制说明：`components/*.php` 与 `bin/yaml-pages` 与另一前端 `migears/xml-pages` 逐字相同（四个内置组件 byte 级一致）。这是刻意接受的代价——组件必须随包分发才能被 `addPath` 找到，CLI 依赖各自的解析扩展——但改动其中一处（如 badge 的默认 type）必须同步另一处，两侧的组件清单与测试也需一起核对。`tests/BundledComponentsTest.php` 把这条约束变成可执行检查：同仓检出时逐字比对组件清单与内容，独立安装（兄弟包不存在）时跳过。
 
@@ -1235,6 +1240,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 根与列表形态 | `body` 非数组或写成单个映射、`layout` 非字符串、`sections` 非映射；`then` / `each.body` / `fields` / `columns` 写成映射时报可读错误 |
 | CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 未识别选项被拒 / 失败退出码 |
 | 安装环境 | 缺 Composer autoloader / 缺 `ext-yaml` / 未预料 `Error`：stderr 一行、退出码 1、无调用栈；`--help` 仍可响应 |
+| 不可信 YAML | `yaml.decode_php=1` 时 `!php/object` 也不会被反序列化（解析期间强制关闭，宿主设置随后还原）；环境保持其开启且无 `ini_set()` 时按名报错 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
 | 副本一致性 | 内置组件与 `migears/xml-pages` 逐字相同（同仓检出时校验，独立安装时跳过） |
 

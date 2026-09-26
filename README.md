@@ -127,6 +127,7 @@ Also:
 - `level: 2`, `rows: 4` parse as integers, matching the `heading.level` / `textarea.rows` type checks.
 - In double-quoted strings `\n` is a newline; use single quotes for a literal backslash-n.
 - A key containing a colon (`x-on:click:`, `wire:click:`) needs no quotes — a colon not followed by whitespace is not a mapping separator.
+- `!php/object` and the other `!php/` tags are **never decoded**: the compiler turns `yaml.decode_php` off for its own parse and restores it afterwards, so a declaration cannot smuggle an object in whatever php.ini says. The tag's value arrives as plain text.
 - One stream, one document: a second document after a `---` separator is a compile error, because a page declaration is a single document. A leading `---` start marker does not count as one, and a `---` inside a block scalar is text.
 
 ## Front-end Framework Integration
@@ -521,6 +522,7 @@ php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
 - `level: 2`、`rows: 4` 解析为整数，与 `heading.level` / `textarea.rows` 的类型校验一致。
 - 双引号字符串中 `\n` 是换行；需要字面 `\n` 时用单引号。
 - 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后紧跟非空白字符即不构成映射分隔。
+- `!php/object` 及其它 `!php/` 标签**永不解码**：编译器在自身解析期间关闭 `yaml.decode_php`，结束后还原，因此无论 php.ini 怎么设，声明都无法夹带对象进来；标签的值按纯文本处理。
 - 一个流只能有一个文档：`---` 分隔出的第二个文档会编译报错，因为页面声明只能是单个文档。文档开头的 `---` 起始标记不算第二个文档，块标量里的 `---` 是文本。
 
 ## 前端框架集成
