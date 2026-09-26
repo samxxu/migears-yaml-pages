@@ -5,7 +5,7 @@
          colors="true"
          cacheDirectory=".phpunit.cache">
     <testsuites>
-        <testsuite name="migears-json-pages">
+        <testsuite name="migears-yaml-pages">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
