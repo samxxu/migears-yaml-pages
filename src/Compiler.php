@@ -43,10 +43,13 @@ class Compiler extends PagesCompiler
         // the document contains. A page declaration is data — and machine-written
         // declarations are this module's whole scenario — so that is an
         // object-injection vector rather than a feature. The directive is turned
-        // off for this parse and restored afterwards, which makes the compiler safe
-        // whatever the host configured, and makes the ext-yaml version that
-        // defaults it to on irrelevant. Guarded because an environment that keeps
-        // the directive on cannot be trusted to read the document at all.
+        // off for this parse and restored afterwards, so the host's own setting
+        // does not decide what a page can do. Two installations need nothing from
+        // this: one that already has the directive off, and one whose ext-yaml has
+        // no such directive at all (ini_get() answers false), which cannot honour a
+        // `!php/object` tag in the first place. An installation that has it on and
+        // will not let it be turned off is refused below, because a document from
+        // it cannot be read safely whatever we do.
         $decodePhp = ini_get('yaml.decode_php');
         $forcedDecodePhp = false;
         if (is_string($decodePhp) && trim($decodePhp) !== '' && (int) $decodePhp !== 0) {

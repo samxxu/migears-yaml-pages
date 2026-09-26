@@ -585,7 +585,7 @@ migears-yaml-pages/
 
 composer dependency notes: what actually runs at runtime are the generated template and the built-in components, which all depend on migears/template; the compile time depends on migears/pages' shared compiler, hence it is set as `require` (the pages package itself declares migears/template). The parsing layer uses PECL ext-yaml's `yaml_parse` (`pecl install yaml`), with no third-party composer packages. The `ext-yaml` version is left open on purpose: which default `yaml.decode_php` ships with decides nothing, because the compiler turns the directive off for its own parse.
 
-Copy note: `components/*.php`, `bin/yaml-pages`, and the other front-end `migears/xml-pages` are byte-for-byte identical (the four built-ins are byte-identical). This is a deliberately accepted cost — components must ship with the package to be found by `addPath`, and the CLI depends on each one's own parsing extension — but changing one place (e.g. badge's default type) must be mirrored in the other, and the component inventories and tests on both sides must be checked together. `tests/BundledComponentsTest.php` turns this constraint into an executable check: on a monorepo checkout it compares the component inventory and contents byte for byte, and skips on a standalone install (sibling package absent).
+Copy note: `components/*.php` are byte-for-byte identical to `migears/xml-pages` (the four built-ins are), and the two CLIs are kept in step line for line, differing only where the packages genuinely differ: the namespace, the parsing extension each needs, the file extension each looks for, and the package name a message names. This is a deliberately accepted cost — components must ship with the package to be found by `addPath`, and the CLI depends on each one's own parsing extension — but changing one place (e.g. badge's default type) must be mirrored in the other, and the component inventories and tests on both sides must be checked together. `tests/BundledComponentsTest.php` turns this constraint into an executable check: on a monorepo checkout it compares the component inventory and contents byte for byte, and skips on a standalone install (sibling package absent).
 
 ## 11. Test Plan (TDD)
 
@@ -1226,7 +1226,7 @@ migears-yaml-pages/
 
 composer 依赖说明：运行期实际执行的是生成的模板与内置组件，均依赖 migears/template；编译期依赖 migears/pages 的共享编译器，故设为 `require`（pages 包自身声明 migears/template）。解析层使用 PECL ext-yaml 的 `yaml_parse`（`pecl install yaml`），无 composer 第三方包。`ext-yaml` 的版本刻意保持开放：它自带的 `yaml.decode_php` 默认值不再决定安全性，因为编译器在自身解析期间会关闭该指令。
 
-复制说明：`components/*.php` 与 `bin/yaml-pages` 与另一前端 `migears/xml-pages` 逐字相同（四个内置组件 byte 级一致）。这是刻意接受的代价——组件必须随包分发才能被 `addPath` 找到，CLI 依赖各自的解析扩展——但改动其中一处（如 badge 的默认 type）必须同步另一处，两侧的组件清单与测试也需一起核对。`tests/BundledComponentsTest.php` 把这条约束变成可执行检查：同仓检出时逐字比对组件清单与内容，独立安装（兄弟包不存在）时跳过。
+复制说明：`components/*.php` 与另一前端 `migears/xml-pages` 逐字相同（四个内置组件 byte 级一致）；两个 CLI 也逐行对齐，只在两包真正不同的地方分叉：命名空间、各自解析所需的扩展、各自识别的文件扩展名，以及消息里点到的包名。这是刻意接受的代价——组件必须随包分发才能被 `addPath` 找到，CLI 依赖各自的解析扩展——但改动其中一处（如 badge 的默认 type）必须同步另一处，两侧的组件清单与测试也需一起核对。`tests/BundledComponentsTest.php` 把这条约束变成可执行检查：同仓检出时逐字比对组件清单与内容，独立安装（兄弟包不存在）时跳过。
 
 ## 11. 测试计划（TDD）
 
