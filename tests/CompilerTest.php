@@ -654,6 +654,56 @@ body:
         $this->assertSame('A', $out);
     }
 
+    public function testQuotedAttributeNamesThatCannotBeNamesAreRejected(): void
+    {
+        // The README sells quoted keys as the way to spell any attribute name, but
+        // the name is emitted as written: whitespace ends it and everything after
+        // it is read as a second attribute. XML refuses the same shapes while it
+        // parses; YAML has to refuse them where the name is emitted.
+        $this->expectError(
+            "body:\n  - type: el\n    tag: div\n    \"data-x y\": v\n    body: []",
+            'is not a legal attribute name'
+        );
+        $this->expectError(
+            "body:\n  - type: el\n    tag: div\n    'data-x\"y': v\n    body: []",
+            'is not a legal attribute name'
+        );
+    }
+
+    public function testLiteralAttributeValuesAreEscaped(): void
+    {
+        // A quote in an href used to close the attribute, so the rest of the line
+        // was read as markup: the page compiled, and the tag was not the one that
+        // was written. Attribute values are escaped in both front ends now.
+        $this->assertSame(
+            '<a href="x&quot; onclick=&quot;alert(1)">Go</a>',
+            $this->compile("body:\n  - type: link\n    href: 'x\" onclick=\"alert(1)'\n    text: Go")
+        );
+        $this->assertStringContainsString(
+            '<form action="?a=1&amp;b=2" method="post">',
+            $this->compile("body:\n  - type: form\n    action: '?a=1&b=2'\n    fields:\n      - name: q\n        label: Q")
+        );
+    }
+
+    public function testSectionNamesAreTrimmedSoTheLayoutCanFillThem(): void
+    {
+        $out = $this->compile("layout: layout/main\nsections:\n  \" content \":\n    - type: text\n      text: A");
+
+        $this->assertStringContainsString("\$this->start('content')", $out);
+        $this->assertStringNotContainsString("' content '", $out);
+    }
+
+    public function testDuplicateMappingKeysAreLastOneWinsAndUndetected(): void
+    {
+        // libyaml merges duplicate keys before PHP sees the document and reports
+        // nothing at all, so the compiler cannot tell that a block was dropped: the
+        // second body wins and the first is gone. YAML itself calls two equal keys
+        // in one mapping an error, so this is libyaml being lenient — the behaviour
+        // is documented (README "YAML Notes", spec §4.2) instead of detected.
+        // migears/xml-pages refuses the equivalent duplicate element.
+        $this->assertSame('B', $this->compile("body:\n  - type: text\n    text: A\nbody:\n  - type: text\n    text: B"));
+    }
+
     public function testErrorCarriesNodePath(): void
     {
         try {

@@ -129,6 +129,7 @@ Also:
 - A key containing a colon (`x-on:click:`, `wire:click:`) needs no quotes — a colon not followed by whitespace is not a mapping separator.
 - `!php/object` and the other `!php/` tags are **never decoded**: the compiler turns `yaml.decode_php` off for its own parse and restores it afterwards, so a declaration cannot smuggle an object in whatever php.ini says. The tag's value arrives as plain text.
 - One stream, one document: a second document after a `---` separator is a compile error, because a page declaration is a single document. A leading `---` start marker does not count as one, and a `---` inside a block scalar is text.
+- Duplicate keys in one mapping are merged by libyaml **before PHP sees the document**: the last one wins, with no warning and nothing left to detect — a second `body:` silently replaces the first, and so does a second `sections.content`. YAML itself makes two equal keys in one mapping an error, so the loader is being lenient here; keep one key per mapping. (`migears/xml-pages` refuses the equivalent duplicate element.)
 
 ## Front-end Framework Integration
 
@@ -145,6 +146,8 @@ Keys on a node fall into three groups:
 Nodes that emit no tag of their own (`text`, `if`, `each`, `component`) reject forwarded attributes; wrap them in `el` instead. The page root likewise accepts only `title` / `layout` / `body` / `sections`.
 
 Forwarded values are HTML-escaped first and interpolated second, so `{{ }}` works inside them (and single quotes stay readable). Scalars are normalised for HTML: `7` → `"7"`, `true` → `"true"`, `x-cloak:` → `x-cloak=""` (the YAML spelling of a valueless attribute); anything non-scalar is an error.
+
+A forwarded name is emitted exactly as written, so it has to be a legal attribute name: whitespace, quotes, `<`, `>`, `/`, `=` and control bytes are compile errors (the XML front end refuses the same shapes while it parses, and refuses an `<attr>` name that is not one). The DSL's own literal attributes — `link.href`, `link.target`, `form.action`, `field.name` / `id` / `placeholder`, `option` value — are escaped the same way, so a quote in an `href` can no longer end the attribute early. Element text is not escaped: that part is yours, exactly as on a `text` node.
 
 ```yaml
 - type: el
@@ -524,6 +527,7 @@ php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
 - 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后紧跟非空白字符即不构成映射分隔。
 - `!php/object` 及其它 `!php/` 标签**永不解码**：编译器在自身解析期间关闭 `yaml.decode_php`，结束后还原，因此无论 php.ini 怎么设，声明都无法夹带对象进来；标签的值按纯文本处理。
 - 一个流只能有一个文档：`---` 分隔出的第二个文档会编译报错，因为页面声明只能是单个文档。文档开头的 `---` 起始标记不算第二个文档，块标量里的 `---` 是文本。
+- 同一映射里的重复键由 libyaml **在 PHP 看到文档之前**合并：后者胜、无警告、事后无从探测——写两个 `body:` 时第一个被静静替换，`sections.content` 重复同理。YAML 本身规定同一映射中两个相等的键是错误，这里只是加载器宽容；每个映射保持一个键即可。（`migears/xml-pages` 对等价的重复元素是直接报错的。）
 
 ## 前端框架集成
 
@@ -540,6 +544,8 @@ php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
 不输出标签的节点（`text`、`if`、`each`、`component`）不接受透传属性，用 `el` 包裹即可。页面根同理，只认 `title` / `layout` / `body` / `sections`。
 
 透传值先转义、后插值，所以 `{{ }}` 在属性值里照常可用（单引号也保持可读）。标量按 HTML 属性的形态归一：`7` → `"7"`、`true` → `"true"`、`x-cloak:` → `x-cloak=""`（无值属性的 YAML 写法）；非标量报错。
+
+透传的名字按原样写进标签，因此必须是合法的属性名：含空白、引号、`<`、`>`、`/`、`=` 或控制字符一律编译错误（XML 前端在解析时拒掉同样的形态，`<attr>` 名不合法同样报错）。DSL 自己的字面量属性——`link.href`、`link.target`、`form.action`、`field.name` / `id` / `placeholder`、`option` 的 value——现在走同一套转义，`href` 里的引号再也不会提前结束属性。元素文本不转义：那部分由你掌控，与 `text` 节点一致。
 
 ```yaml
 - type: el

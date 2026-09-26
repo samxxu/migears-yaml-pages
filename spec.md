@@ -82,7 +82,7 @@ sections:
 
 Rule: when `layout` exists, `sections` is required and `body` is disallowed; when `layout` is absent, `body` is required and `sections` is disallowed. Violating this is a compile error.
 
-The values of `body` and `sections` are all **node-tree arrays** ("nodes" for short). When `title` exists, a `title` section is auto-generated (only effective with a `layout`; without a layout it is ignored with a warning). Both spellings fill that one section, so a `title` key and a `title` section together are a compile error rather than a silent win for one of them.
+The values of `body` and `sections` are all **node-tree arrays** ("nodes" for short). When `title` exists, a `title` section is auto-generated (only effective with a `layout`; without a layout it is ignored with a warning). Both spellings fill that one section, so a `title` key and a `title` section together are a compile error rather than a silent win for one of them. Section names are trimmed (`" content "` → `content`, as the XML front end already did) and an empty name is a compile error: a section is filled by name, and a padded name reached no layout section at all.
 
 ### 4.2 YAML writing notes
 
@@ -106,6 +106,7 @@ Other notes:
 - `!php/object` and the other `!php/` tags are **never decoded**: the compiler turns `yaml.decode_php` off for its own parse and restores the host's setting afterwards, so a declaration cannot carry an object into the compiler whatever php.ini says. The tag's value arrives as plain text. An environment that keeps the directive on and blocks `ini_set()` cannot be read safely and is refused with a message naming the directive.
 - Merge keys are not supported: `<<: {class: box}` makes libyaml warn (`expected a mapping for merging, but found scalar`) and hand back a page without those attributes. Since **any** parse warning fails the compilation (§9), spell the attributes out — `class: box` — instead of merging.
 - A stream is a sequence of documents separated by `---`, but a page declaration is exactly one. A second document — a trailing separator opening an empty one included — is a compile error rather than a silent drop. A leading `---` start marker is not a separator, and `---` inside a block scalar is text.
+- Duplicate keys in one mapping are merged by libyaml **before PHP sees the document**: `body:` written twice keeps the second and loses the first with no warning and no exception, and `sections.content` behaves the same. YAML itself makes two equal keys in one mapping an error, so the loader is lenient here; nothing detects it (§12), so the rule is one key per mapping. `migears/xml-pages` refuses the equivalent duplicate element, which is the workaround when the mistake matters.
 
 ### 4.3 Attribute passthrough
 
@@ -122,6 +123,11 @@ Keys on a node are handled in three groups:
 Nodes that emit no tag (`text`, `if`, `each`, `component`) do not accept passthrough attributes; wrap them in `el` instead. The page root is the same — it only recognizes `title` / `layout` / `body` / `sections`.
 
 Passthrough attribute values are first HTML-attribute-escaped (`ENT_COMPAT`, keeping single quotes readable) and then `{{ }}`-interpolated — the order must not be reversed, or the quotes in the `## ##` sugar syntax would be broken by escaping. Scalar values are normalized into a form HTML attributes can carry: integer `7` → `"7"`, boolean `true` → `"true"`, empty value `x-cloak:` → `x-cloak=""` (the YAML spelling of a valueless attribute); non-scalars (maps/arrays) are an error.
+
+Two rules apply to the name and to the DSL's own literal attributes, and both live in the shared compiler so the two front ends cannot drift apart:
+
+- **A name is emitted exactly as written, so it must be a legal attribute name.** Whitespace, quotes, `<`, `>`, `/`, `=` and control bytes are compile errors — a space ends the name and everything after it would be read as a second attribute. The XML front end refuses the same shapes while it parses (and refuses an illegal `<attr name>`); a quoted YAML key can spell any name, so the check happens where the name is emitted.
+- **Literal attribute values are escaped like passthrough ones**: `link.href`, `link.target`, `form.action`, `field.name` / `id` / `placeholder`, the submit button's `value` and `option`'s value. Without it a quote in an `href` closed the attribute and the rest of the line was read as markup. Element text — `text`, `heading`, `link.text`, `label`, option text, `table.empty`, `column.label` — is **not** escaped: it is written by the author (the `text` node documents that it may carry HTML), so escaping it here would turn deliberate markup into visible angle brackets.
 
 **The only difference from the XML variant**: XML attribute names cannot hold `@`, so there `__click` stands for `@click`; YAML writes `"@click"` directly — **there is no `__` mapping**, nor is an `<attr>` node needed (a quoted YAML key can express any attribute name). Writing `__click` by mistake raises an error that tells you to use `"@click"`.
 
@@ -519,6 +525,8 @@ Error categories and message requirements:
 | Template-layer marker | `##` appears in a literal field (`label` / `name` / `tag` / `empty` / option etc.) — these fields are written verbatim into the output with no place to escape | body[0].fields[0]: "label" is a literal and may not contain "##" (template-level syntax) |
 | Nested-structure type error | field/column type does not match the position | type must be "field" (field is a nested structure; its position decides the type) |
 | Unknown key | neither a DSL field of that node nor on the passthrough whitelist | unknown attribute "levl"; the passthrough accepts the '@event' shorthand, directive names with a colon (x-on:click / wire:click / :href, etc.), the x- / v- / hx- / data- prefixes and class / id / style / bind; check the spelling |
+| Illegal attribute name | the emitted name cannot be a name (whitespace, quotes, `<`, `>`, `/`, `=`, control bytes) — a quoted YAML key can spell any of them | "data-x y" is not a legal attribute name |
+| Empty section name | a section key that is empty after trimming (a name no layout can fill) | sections: section name '   ' is empty; a layout can only fill a named section |
 | Brace mangling | interpolation has `{{{` or `}}}` | interpolation markers cannot run three braces ({{{ or }}}); write {{ path }} |
 | Root field type error | `layout` / `title` is not a string, `sections` is not a mapping | page: layout must be a string, got array |
 | List-shape error | a node tree (value of `then` / `else` / `body` / `content` / `sections`) or `fields` / `columns` is written as a mapping | sections.content: must be a node tree array (a list), but got a key-value map; wrap it in [ ] to make a list |
@@ -602,6 +610,10 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | Template-layer marker | `##` in text is escaped per template-layer syntax (output contains `\##`); a single `#` needs no escaping (shared layer, reachable from the front-ends too) |
 | Parsing | YAML syntax error errors, non-mapping root errors, an empty document is not a syntax error, and an empty mapping reaches the page-content rule |
 | Document count | a second document (`---`) errors, a trailing separator errors; a leading `---` start marker and a `---` inside a block scalar stay one document |
+| Attribute names | a quoted key that cannot be a name (`"data-x y"`, `'data-x"y'`, control bytes) errors, as it does in the XML front end |
+| Literal attribute escaping | a quote or `&` in `link.href` / `form.action` / `field.name` / `option` value is escaped in the artifact, while element text (`link.text`, `label`) is left as written |
+| Section names | a padded section name is trimmed so a layout can fill it; a name that is empty after trimming errors |
+| Duplicate keys | the second `body:` wins and the first is lost — the documented behaviour is pinned, since libyaml reports nothing to detect |
 | Passthrough | Alpine / Vue / htmx / Livewire directives and `class`/`id`/`style` passthrough; `"@click"` quoted key; `x-on:click` bare key; value escaping; interpolation inside values; scalar normalization (integer/boolean/empty value) |
 | Passthrough misuse | unknown key errors; attributes on tag-less nodes (`text`/`if`/`each`/`component`) errors; unknown root field errors |
 | el | with body / empty body / missing tag error / invalid tag error |
@@ -622,6 +634,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 - Custom components authored in YAML (components exist only as PHP templates)
 - Expression-language extensions (arithmetic, functions, ternaries)
 - Runtime YAML parsing / hot reload
+- Duplicate mapping keys: libyaml merges them before PHP sees the document (last one wins, no warning) and ext-yaml exposes no hook that could observe the merge, so a detector would have to be a source-level scan — fragile enough to reject valid pages with block scalars and flow collections. Documented instead (§4.2), and pinned by a test; `migears/xml-pages` refuses the equivalent duplicate element.
 - HTML form controls beyond `input` (file upload, date picker, etc.)
 
 ---
@@ -710,7 +723,7 @@ sections:
 
 规则：`layout` 存在时 `sections` 必填、`body` 禁用；`layout` 不存在时 `body` 必填、`sections` 禁用。违反即编译错误。
 
-`body` 与 `sections` 值均为**节点树数组**（下称"节点"）。`title` 存在时自动生成一个 `title` section（仅在有 `layout` 时生效，无 layout 时忽略并告警）。两种写法填的是同一个 section，因此 `title` 键与 `title` section 同时存在属编译错误，而不是静默让其中一方胜出。
+`body` 与 `sections` 值均为**节点树数组**（下称"节点"）。`title` 存在时自动生成一个 `title` section（仅在有 `layout` 时生效，无 layout 时忽略并告警）。两种写法填的是同一个 section，因此 `title` 键与 `title` section 同时存在属编译错误，而不是静默让其中一方胜出。section 名会做 trim（`" content "` → `content`，与 XML 前端既有行为一致），trim 后为空属编译错误：section 是按名字填充的，带多余空白的名字根本填不到布局里的任何 section。
 
 ### 4.2 YAML 编写注意
 
@@ -734,6 +747,7 @@ sections:
 - `!php/object` 及其它 `!php/` 标签**永不解码**：编译器在自身解析期间关闭 `yaml.decode_php`，结束后还原宿主设置，因此无论 php.ini 怎么设，声明都无法把对象夹带进编译器；标签的值按纯文本处理。若环境保持该指令开启且禁用了 `ini_set()`，文档无法被安全读取，直接报错并点名该指令。
 - 不支持 merge key：`<<: {class: box}` 会让 libyaml 发出 `expected a mapping for merging, but found scalar` 警告，并交回一个不含这些属性的页面。由于**任何**解析警告都会导致编译失败（§9），请把属性逐个写出来（`class: box`），不要用合并。
 - 流是一串以 `---` 分隔的文档，而页面声明只能是其中一个。出现第二个文档——含行尾分隔符开启的空文档——一律编译报错，而不是悄悄丢弃。文档开头的 `---` 起始标记不是分隔符，块标量里的 `---` 是文本。
+- 同一映射里的重复键由 libyaml **在 PHP 看到文档之前**合并：`body:` 写两次时第二个胜出、第一个无声消失，`sections.content` 同理，且没有警告、没有异常。YAML 本身规定同一映射里两个相等的键是错误，这里只是加载器宽容；本模块不检测它（§12），规则是每个映射一个键。需要让这类笔误报错时用 `migears/xml-pages`——它对等价的重复元素直接报错。
 
 ### 4.3 属性透传
 
@@ -750,6 +764,11 @@ sections:
 不输出标签的节点（`text`、`if`、`each`、`component`）不接受透传属性，需用 `el` 包裹。页面根同理，只认 `title` / `layout` / `body` / `sections`。
 
 透传属性的值先做 HTML 属性转义（`ENT_COMPAT`，保留单引号可读性），再做 `{{ }}` 插值——顺序不能反，否则 `## ##` 糖语法里的引号会被转义破坏。标量值统一按 HTML 属性可承载的形式归一：整数 `7` → `"7"`、布尔 `true` → `"true"`、空值 `x-cloak:` → `x-cloak=""`（无值属性的 YAML 写法）；非标量（映射/数组）报错。
+
+名字本身与 DSL 自带的字面量属性还各有一条规则，两条都在共享编译器里实现，两个前端因此不会分叉：
+
+- **名字按原样写进标签，因此必须是合法的属性名。** 空白、引号、`<`、`>`、`/`、`=` 与控制字符一律编译错误——一个空格就会结束名字，后面的内容会被当成第二个属性。XML 前端在解析阶段拒掉同样的形态（`<attr name>` 不合法同样报错）；YAML 的引号键可以表达任何名字，所以这项检查落在「名字写出去」的地方。
+- **字面量属性值按与透传值相同的方式转义**：`link.href`、`link.target`、`form.action`、`field.name` / `id` / `placeholder`、提交按钮的 `value`、`option` 的 value。没有它时，`href` 里的一个引号就会提前结束属性、把行尾读成标记。元素文本——`text`、`heading`、`link.text`、`label`、option 文本、`table.empty`、`column.label`——**不转义**：这部分由作者书写（`text` 节点明确允许含 HTML），在这里转义会把作者故意写的标记变成可见的尖括号。
 
 **与 XML 版的唯一差异**：XML 的属性名装不下 `@`，所以那边用 `__click` 表示 `@click`；YAML 直接写 `"@click"` 即可，**没有 `__` 映射**，也不需要 `<attr>` 节点（YAML 的引号键可以表达任何属性名）。误写 `__click` 会报错并提示改成 `"@click"`。
 
@@ -1147,6 +1166,8 @@ views/pages/users.page.yaml: sections.content[2]: unknown node type "foo"
 | 模板层标记 | 字面量字段（`label` / `name` / `tag` / `empty` / option 等）里出现 `##`——这些字段原样写入产物，没有可转义的位置 | body[0].fields[0]: "label" is a literal and may not contain "##" (template-level syntax) |
 | 内嵌结构类型错误 | field/column 的 type 与位置不符 | type must be "field" (field is a nested structure; its position decides the type) |
 | 未知键 | 既非该节点的 DSL 字段，也不在透传白名单 | unknown attribute "levl"; the passthrough accepts the '@event' shorthand, directive names with a colon (x-on:click / wire:click / :href, etc.), the x- / v- / hx- / data- prefixes and class / id / style / bind; check the spelling |
+| 属性名非法 | 写出的名字不可能成为属性名（空白、引号、`<`、`>`、`/`、`=`、控制字符）——YAML 的引号键可以表达其中任何一个 | "data-x y" is not a legal attribute name |
+| section 名为空 | section 键 trim 后为空（布局永远填不上的名字） | sections: section name '   ' is empty; a layout can only fill a named section |
 | 花括号错乱 | 插值出现 `{{{` 或 `}}}` | interpolation markers cannot run three braces ({{{ or }}}); write {{ path }} |
 | 根字段类型错误 | `layout` / `title` 不是字符串，`sections` 不是映射 | page: layout must be a string, got array |
 | 列表形态错误 | 节点树（`then` / `else` / `body` / `content` / `sections` 的值）或 `fields` / `columns` 被写成映射 | sections.content: must be a node tree array (a list), but got a key-value map; wrap it in [ ] to make a list |
@@ -1230,6 +1251,10 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 模板层标记 | 文本里出现 `##` 时按模板层语法转义（产物含 `\##`）；单个 `#` 不需转义（共享层，前端侧同样可达） |
 | 解析 | YAML 语法错误报错、根非映射报错、空文档不算语法错误、空映射落到页面内容规则 |
 | 文档数量 | 第二个文档（`---`）报错、行尾分隔符报错；文档开头的 `---` 起始标记与块标量内的 `---` 仍算单个文档 |
+| 属性名 | 引号键里写不出合法属性名（`"data-x y"`、`'data-x"y'`、控制字符）时报错，与 XML 前端一致 |
+| 字面量属性转义 | `link.href` / `form.action` / `field.name` / `option` 的 value 里的引号与 `&` 在产物中被转义；元素文本（`link.text`、`label`）保持原样 |
+| section 名 | 带多余空白的 section 名被 trim，使布局能填上；trim 后为空报错 |
+| 重复键 | 第二个 `body:` 胜出、第一个丢失——libyaml 不报任何信息可探测，因此把这一行为钉死在测试里 |
 | 透传 | Alpine / Vue / htmx / Livewire 指令与 `class`/`id`/`style` 透传；`"@click"` 引号键；`x-on:click` 裸键；值转义；值内插值；标量归一（整数/布尔/空值） |
 | 透传误用 | 未知键报错；无标签节点（`text`/`if`/`each`/`component`）承载属性报错；页面根未知字段报错 |
 | el | 带 body / 空 body / 缺 tag 报错 / 非法 tag 报错 |
@@ -1250,4 +1275,5 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 - YAML 内自定义组件（组件只以 PHP 模板形态存在）
 - 表达式语言扩展（算术、函数、三元）
 - 运行期 YAML 解析 / 热更新
+- 重复映射键：libyaml 在 PHP 看到文档之前就把它合并掉了（后者胜、无警告），ext-yaml 也没有任何可观测该合并的钩子，因此检测只能靠扫源码——而扫描器必须处理块标量与流式集合，脆弱到会拒掉合法页面。故改为文档化（§4.2）并用测试钉住行为；`migears/xml-pages` 对等价的重复元素直接报错。
 - 覆盖 `input` 之外的 HTML 表单控件（文件上传、日期选择等）
