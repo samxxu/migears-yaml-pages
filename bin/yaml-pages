@@ -22,7 +22,7 @@ Usage: php yaml-pages <command> [arguments]
 Commands:
   compile <input> [output-dir] [--check]
         Compile .page.yaml page declarations into .tpl.php templates
-        <input>       a .page.yaml file or directory (recursed when a directory)
+        <input>       a .page.yaml file or directory (a directory is searched recursively)
         [output-dir]  output directory, defaults to the source file's directory
         --check       validate only, do not write files
 
