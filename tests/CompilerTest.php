@@ -743,6 +743,22 @@ body:
         $this->assertSame('B', $this->compile("body:\n  - type: text\n    text: A\nbody:\n  - type: text\n    text: B"));
     }
 
+    public function testDuplicateKeysInsideMapsAreMergedSilentlyToo(): void
+    {
+        // Not a top-level story: libyaml merges before PHP sees the document, so every
+        // mapping behaves the same and the compiler has nothing to detect it with. A
+        // repeated `options` key keeps the last option, a repeated `data` key keeps the
+        // last value — silently. migears/xml-pages refuses the equivalent duplicate
+        // element, which is the front end to use when a repeat has to be an error.
+        $out = $this->compile("body:\n  - type: form\n    action: /s\n    fields:\n      - name: r\n        label: R\n        input: select\n        options:\n          x: A\n          x: B");
+        $this->assertStringContainsString('<option value="x">B</option>', $out);
+        $this->assertStringNotContainsString('>A<', $out);
+
+        $out = $this->compile("body:\n  - type: component\n    name: card\n    data:\n      title: A\n      title: B");
+        $this->assertStringContainsString("'title' => 'B'", $out);
+        $this->assertStringNotContainsString("'A'", $out);
+    }
+
     public function testErrorCarriesNodePath(): void
     {
         try {

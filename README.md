@@ -129,7 +129,7 @@ Also:
 - A key containing a colon (`x-on:click:`, `wire:click:`) needs no quotes — a colon not followed by whitespace is not a mapping separator.
 - `!php/object` and the other `!php/` tags are **never decoded**: the compiler turns `yaml.decode_php` off for its own parse and restores it afterwards, so a declaration cannot smuggle an object in whatever php.ini says. The tag's value arrives as plain text.
 - One stream, one document: a second document after a `---` separator is a compile error, because a page declaration is a single document. A leading `---` start marker does not count as one, and a `---` inside a block scalar is text.
-- Duplicate keys in one mapping are merged by libyaml **before PHP sees the document**: the last one wins, with no warning and nothing left to detect — a second `body:` silently replaces the first, and so does a second `sections.content`. YAML itself makes two equal keys in one mapping an error, so the loader is being lenient here; keep one key per mapping. (`migears/xml-pages` refuses the equivalent duplicate element.)
+- Duplicate keys in one mapping are merged by libyaml **before PHP sees the document**: the last one wins, with no warning and nothing left to detect — a second `body:` silently replaces the first, and so do a second `sections.content`, a node field written twice, a repeated `options` key and a repeated `component.data` key. YAML itself makes two equal keys in one mapping an error, so the loader is being lenient here; keep one key per mapping. (`migears/xml-pages` refuses the equivalent duplicate element.)
 
 ## Front-end Framework Integration
 
@@ -527,7 +527,7 @@ php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
 - 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后紧跟非空白字符即不构成映射分隔。
 - `!php/object` 及其它 `!php/` 标签**永不解码**：编译器在自身解析期间关闭 `yaml.decode_php`，结束后还原，因此无论 php.ini 怎么设，声明都无法夹带对象进来；标签的值按纯文本处理。
 - 一个流只能有一个文档：`---` 分隔出的第二个文档会编译报错，因为页面声明只能是单个文档。文档开头的 `---` 起始标记不算第二个文档，块标量里的 `---` 是文本。
-- 同一映射里的重复键由 libyaml **在 PHP 看到文档之前**合并：后者胜、无警告、事后无从探测——写两个 `body:` 时第一个被静静替换，`sections.content` 重复同理。YAML 本身规定同一映射中两个相等的键是错误，这里只是加载器宽容；每个映射保持一个键即可。（`migears/xml-pages` 对等价的重复元素是直接报错的。）
+- 同一映射里的重复键由 libyaml **在 PHP 看到文档之前**合并：后者胜、无警告、事后无从探测——写两个 `body:` 时第一个被静静替换，`sections.content` 重复、节点字段写两次、`options` 的同一个键、`component.data` 的同一个键，都是如此。YAML 本身规定同一映射中两个相等的键是错误，这里只是加载器宽容；每个映射保持一个键即可。（`migears/xml-pages` 对等价的重复元素是直接报错的。）
 
 ## 前端框架集成
 

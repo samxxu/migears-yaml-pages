@@ -52,7 +52,7 @@ Both compilations have their own purpose; they are not merged and not skipped.
 
 ### 3.3 Extremely lightweight
 
-The implementation stays within the same order of magnitude (this package's parsing layer is about 80 lines — the compilation logic all lives in the migears/pages shared layer, about 1050 lines; the CLI is about 110 lines; components are plain PHP template files). Any feature that would significantly bloat the implementation is rejected.
+The implementation stays within the same order of magnitude, and any feature that would significantly bloat it is rejected. Where the lines are is what matters, not how many: this package only parses its own syntax into the array IR, the compilation logic all lives in the migears/pages shared layer, the CLI is a thin wrapper, and components are plain template PHP files. Exact counts are measured by the review report rather than quoted here — a number written into prose is a number that goes stale.
 
 ### 3.4 Compilation is validation
 
@@ -82,7 +82,7 @@ sections:
 
 Rule: when `layout` exists, `sections` is required and `body` is disallowed; when `layout` is absent, `body` is required and `sections` is disallowed. Violating this is a compile error.
 
-The values of `body` and `sections` are all **node-tree arrays** ("nodes" for short). When `title` exists, a `title` section is auto-generated (only effective with a `layout`; without a layout it is ignored with a warning). Both spellings fill that one section, so a `title` key and a `title` section together are a compile error rather than a silent win for one of them. Section names are trimmed (`" content "` → `content`, as the XML front end already did) and an empty name is a compile error: a section is filled by name, and a padded name reached no layout section at all.
+The values of `body` and `sections` are all **node-tree arrays** ("nodes" for short). When `title` exists, a `title` section is auto-generated (only effective with a `layout`: without one the title is dropped, and a notice goes to the compiler's warn callback — the default `new Compiler()` takes no callback, so nothing is reported at all). Both spellings fill that one section, so a `title` key and a `title` section together are a compile error rather than a silent win for one of them. Section names are trimmed (`" content "` → `content`, as the XML front end already did) and an empty name is a compile error: a section is filled by name, and a padded name reached no layout section at all.
 
 ### 4.2 YAML writing notes
 
@@ -106,7 +106,7 @@ Other notes:
 - `!php/object` and the other `!php/` tags are **never decoded**: the compiler turns `yaml.decode_php` off for its own parse and restores the host's setting afterwards, so a declaration cannot carry an object into the compiler whatever php.ini says. The tag's value arrives as plain text. An environment that keeps the directive on and blocks `ini_set()` cannot be read safely and is refused with a message naming the directive.
 - Merge keys are not supported: `<<: {class: box}` makes libyaml warn (`expected a mapping for merging, but found scalar`) and hand back a page without those attributes. Since **any** parse warning fails the compilation (§9), spell the attributes out — `class: box` — instead of merging.
 - A stream is a sequence of documents separated by `---`, but a page declaration is exactly one. A second document — a trailing separator opening an empty one included — is a compile error rather than a silent drop. A leading `---` start marker is not a separator, and `---` inside a block scalar is text.
-- Duplicate keys in one mapping are merged by libyaml **before PHP sees the document**: `body:` written twice keeps the second and loses the first with no warning and no exception, and `sections.content` behaves the same. YAML itself makes two equal keys in one mapping an error, so the loader is lenient here; nothing detects it (§12), so the rule is one key per mapping. `migears/xml-pages` refuses the equivalent duplicate element, which is the workaround when the mistake matters.
+- Duplicate keys in one mapping are merged by libyaml **before PHP sees the document**: whichever value is written last wins and the other is lost, with no warning and no exception. That is not a top-level story (§4.1): `sections.content`, a node field written twice, an `options` key and a `component.data` key all behave the same. YAML itself makes two equal keys in one mapping an error, so the loader is lenient here; nothing detects it (§12), so the rule is one key per mapping, anywhere in the document. `migears/xml-pages` refuses the equivalent duplicate element, which is the workaround when the mistake matters.
 
 ### 4.3 Attribute passthrough
 
@@ -561,7 +561,7 @@ migears-yaml-pages/
 ├── bin/
 │   └── yaml-pages           CLI entry point
 ├── src/
-│   ├── Compiler.php         YAML parsing layer (YAML → array IR, about 80 lines), extends the shared compiler of migears/pages
+│   ├── Compiler.php         YAML parsing layer (YAML → array IR), extends the shared compiler of migears/pages
 │   └── Exception/
 │       └── CompileException.php
 ├── components/              built-in component templates
@@ -696,7 +696,7 @@ yaml-pages 是 miGears 框架的可选配套模块：一种基于 YAML 的声明
 
 ### 3.3 极轻量
 
-实现规模保持在同一量级（本包解析层约 80 行——编译逻辑全部在 migears/pages 共享层约 1050 行；CLI 约 110 行，组件为纯模板 PHP 文件）。任何让实现显著膨胀的特性都拒绝。
+实现规模保持在同一量级，任何让实现显著膨胀的特性都拒绝。重要的是代码分布在哪，而不是行数：本包只把自己的语法解析成数组 IR，编译逻辑全部在 migears/pages 共享层，CLI 是薄封装，组件是纯模板 PHP 文件。具体行数由评审报告实测，这里不抄写——写进散文里的数字必然会过期。
 
 ### 3.4 编译即校验
 
@@ -726,7 +726,7 @@ sections:
 
 规则：`layout` 存在时 `sections` 必填、`body` 禁用；`layout` 不存在时 `body` 必填、`sections` 禁用。违反即编译错误。
 
-`body` 与 `sections` 值均为**节点树数组**（下称"节点"）。`title` 存在时自动生成一个 `title` section（仅在有 `layout` 时生效，无 layout 时忽略并告警）。两种写法填的是同一个 section，因此 `title` 键与 `title` section 同时存在属编译错误，而不是静默让其中一方胜出。section 名会做 trim（`" content "` → `content`，与 XML 前端既有行为一致），trim 后为空属编译错误：section 是按名字填充的，带多余空白的名字根本填不到布局里的任何 section。
+`body` 与 `sections` 值均为**节点树数组**（下称"节点"）。`title` 存在时自动生成一个 `title` section（仅在有 `layout` 时生效；无 layout 时 title 被丢弃，并给编译器的 warn 回调一条提示——默认 `new Compiler()` 不接收回调，因此什么都不报）。两种写法填的是同一个 section，因此 `title` 键与 `title` section 同时存在属编译错误，而不是静默让其中一方胜出。section 名会做 trim（`" content "` → `content`，与 XML 前端既有行为一致），trim 后为空属编译错误：section 是按名字填充的，带多余空白的名字根本填不到布局里的任何 section。
 
 ### 4.2 YAML 编写注意
 
@@ -750,7 +750,7 @@ sections:
 - `!php/object` 及其它 `!php/` 标签**永不解码**：编译器在自身解析期间关闭 `yaml.decode_php`，结束后还原宿主设置，因此无论 php.ini 怎么设，声明都无法把对象夹带进编译器；标签的值按纯文本处理。若环境保持该指令开启且禁用了 `ini_set()`，文档无法被安全读取，直接报错并点名该指令。
 - 不支持 merge key：`<<: {class: box}` 会让 libyaml 发出 `expected a mapping for merging, but found scalar` 警告，并交回一个不含这些属性的页面。由于**任何**解析警告都会导致编译失败（§9），请把属性逐个写出来（`class: box`），不要用合并。
 - 流是一串以 `---` 分隔的文档，而页面声明只能是其中一个。出现第二个文档——含行尾分隔符开启的空文档——一律编译报错，而不是悄悄丢弃。文档开头的 `---` 起始标记不是分隔符，块标量里的 `---` 是文本。
-- 同一映射里的重复键由 libyaml **在 PHP 看到文档之前**合并：`body:` 写两次时第二个胜出、第一个无声消失，`sections.content` 同理，且没有警告、没有异常。YAML 本身规定同一映射里两个相等的键是错误，这里只是加载器宽容；本模块不检测它（§12），规则是每个映射一个键。需要让这类笔误报错时用 `migears/xml-pages`——它对等价的重复元素直接报错。
+- 同一映射里的重复键由 libyaml **在 PHP 看到文档之前**合并：后写的胜出、另一个消失，没有警告也没有异常。这不是顶层键专属（§4.1）：`sections.content`、节点字段写两次、`options` 的同一个键、`component.data` 的同一个键，行为都一样。YAML 本身规定同一映射里两个相等的键是错误，这里只是加载器宽容；本模块不检测它（§12），规则是文档里任何位置都一个映射一个键。需要让这类笔误报错时用 `migears/xml-pages`——它对等价的重复元素直接报错。
 
 ### 4.3 属性透传
 
@@ -1205,7 +1205,7 @@ migears-yaml-pages/
 ├── bin/
 │   └── yaml-pages           CLI 入口
 ├── src/
-│   ├── Compiler.php         YAML 解析层（YAML → 数组 IR，约 80 行），继承 migears/pages 的共享编译器
+│   ├── Compiler.php         YAML 解析层（YAML → 数组 IR），继承 migears/pages 的共享编译器
 │   └── Exception/
 │       └── CompileException.php
 ├── components/              内置组件模板
