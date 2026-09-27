@@ -32,6 +32,24 @@ use PHPUnit\Framework\TestCase;
  * rejects is each front end's own wording, so those stay in each package's own
  * tests.
  *
+ * Two differences between the two syntaxes are deliberate, and no pair can
+ * express them — they are written down here so the corpus is not read as a claim
+ * that the two accept exactly the same sources:
+ *
+ * 1. How a value's type is decided. An XML attribute is a string, so the shared
+ *    boolean parser reads it with HTML semantics: `required="1"`, `"yes"`,
+ *    `"on"`, `""` and `"required"` are all true. YAML hands the compiler native
+ *    scalars, so `required: 1` is an integer where a boolean is due and
+ *    `rows: '4'` a string where a positive integer is due, and both are refused
+ *    here. Each side is right for its own syntax, and each package's own suite
+ *    pins its own reading; making them agree would mean breaking one of the two.
+ * 2. Duplicate keys. A repeated mapping key cannot be seen from here at all:
+ *    libyaml merges it before PHP reads the document, so the last one wins with
+ *    no warning — this package documents the merge and pins it. The other half
+ *    refuses the equivalent repeated element, and those errors are in its own
+ *    tests. A pair would have to assert a *difference*, which is what this note
+ *    is for instead.
+ *
  * The sibling package is not a composer requirement of this one and cannot be
  * (the two are peers), so it is only usable when it is checked out beside this
  * package. That is the case in the monorepo and in CI; on a standalone install

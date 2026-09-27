@@ -1,0 +1,8 @@
+body:
+  - type: form
+    action: /s
+    fields:
+      - type: field
+        name: a
+        input: hidden
+        required: true

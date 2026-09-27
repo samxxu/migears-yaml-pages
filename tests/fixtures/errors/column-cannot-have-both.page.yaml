@@ -1,0 +1,10 @@
+body:
+  - type: table
+    items: u
+    as: row
+    columns:
+      - label: A
+        pop: '{{ row.a }}'
+        content:
+          - type: text
+            text: x

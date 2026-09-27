@@ -1,0 +1,6 @@
+body:
+  - type: table
+    items: u
+    as: row
+    columns:
+      - label: A

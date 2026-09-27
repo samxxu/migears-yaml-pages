@@ -1,0 +1,9 @@
+body:
+  - type: form
+    action: /s
+    fields:
+      - type: field
+        name: a
+        label: A
+        options:
+          x: X
