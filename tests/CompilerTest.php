@@ -693,6 +693,22 @@ body:
         $this->assertStringNotContainsString("' content '", $out);
     }
 
+    public function testABareYIsTheBooleanTrueAndHasToBeQuoted(): void
+    {
+        // YAML 1.1 resolves the single letters `y` / `n` to booleans, like
+        // `yes` / `no`: libyaml hands the front end a bool before this package
+        // sees anything, so an unquoted attribute value reaches the artifact as
+        // "true" or "false". Nothing here can recover the author's intent — the
+        // document no longer holds a string — so the behaviour is pinned and
+        // documented instead (README "YAML Notes", spec §4.2): quote the value.
+        $el = "body:\n  - type: el\n    tag: div\n    data-x: ";
+
+        self::assertStringContainsString('data-x="true"', $this->compile($el . 'y'));
+        self::assertStringContainsString('data-x="false"', $this->compile($el . 'n'));
+        self::assertStringContainsString('data-x="y"', $this->compile($el . "'y'"));
+        self::assertStringContainsString('data-x="n"', $this->compile($el . "'n'"));
+    }
+
     public function testReservedLoopVariableNamesAreRejectedFromHereToo(): void
     {
         // The rule is the shared compiler's, and YAML reaches it through its own

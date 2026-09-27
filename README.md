@@ -123,7 +123,7 @@ The parser is libyaml (via `ext-yaml`), which follows YAML 1.1. Quote a value wh
 Also:
 
 - `{{ ... }}` in the *middle* of a value (e.g. `/users/{{ user.id }}/edit`) needs no quotes.
-- `true` / `false` / `yes` / `no` / `on` / `off` are booleans in YAML 1.1 — `required: true` is intentional; quote for a literal string.
+- `true` / `false` / `yes` / `no` / `on` / `off` are booleans in YAML 1.1, in any capitalisation, and so are the single letters `y` / `n` — `required: true` is intentional, while `data-x: y` reaches the artifact as `data-x="true"`. Quote a value you mean as a string.
 - `level: 2`, `rows: 4` parse as integers, matching the `heading.level` / `textarea.rows` type checks.
 - In double-quoted strings `\n` is a newline; use single quotes for a literal backslash-n.
 - A key containing a colon (`x-on:click:`, `wire:click:`) needs no quotes — a colon not followed by whitespace is not a mapping separator.
@@ -392,7 +392,7 @@ The CLI prints errors to stderr with the file name; directory mode keeps going o
 composer test
 ```
 
-Unit tests assert exact compiled output; integration tests render the compiled page through the full miGears Template pipeline. With `migears/xml-pages` checked out beside this package, `FrontEndParityTest` compiles the same page written in both syntaxes and requires the two artefacts to be identical — every fixture under `tests/fixtures/pages` has an XML twin, and every one under `tests/fixtures/errors` must be refused with the same message.
+Unit tests assert exact compiled output; integration tests render the compiled page through the full miGears Template pipeline. With `migears/xml-pages` checked out beside this package, `FrontEndParityTest` compiles the same page written in both syntaxes and requires the two artifacts to be identical — every fixture under `tests/fixtures/pages` has an XML twin, and every one under `tests/fixtures/errors` must be refused with the same message.
 
 ## License
 
@@ -521,7 +521,7 @@ php bin/yaml-pages compile examples/full-featured.page.yaml examples/views
 其余注意：
 
 - `{{ ... }}` 在**值中间**（如 `/users/{{ user.id }}/edit`）可裸写，无需引号。
-- `true`/`false`/`yes`/`no`/`on`/`off` 在 YAML 1.1 中是布尔值——`required: true` 是故意的布尔语义；若需字面字符串请加引号。
+- `true`/`false`/`yes`/`no`/`on`/`off` 在 YAML 1.1 中是布尔值且大小写不敏感，单字母 `y`/`n` 同样是布尔值——`required: true` 是故意的布尔语义，而 `data-x: y` 写进产物会变成 `data-x="true"`。凡是要当字符串用的值都请加引号。
 - `level: 2`、`rows: 4` 解析为整数，与 `heading.level` / `textarea.rows` 的类型校验一致。
 - 双引号字符串中 `\n` 是换行；需要字面 `\n` 时用单引号。
 - 键**内含**冒号（`x-on:click:`、`wire:click:`）可裸写——冒号后紧跟非空白字符即不构成映射分隔。
