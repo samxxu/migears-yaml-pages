@@ -508,10 +508,10 @@ Error categories and message requirements:
 | Category | Detection | Example |
 |------|------|------|
 | YAML syntax error | `yaml_parse` returns false — a genuine parse failure only | YAML syntax error: ... |
-| YAML parse warning | `yaml_parse` succeeds but emits one or more warnings — the tree it returned is missing part of the document | YAML parse error: part of the document would be dropped: ... |
+| YAML parse warning | `yaml_parse` succeeds but warns or notices something — the tree it returned is missing part of the document. Only those two severities take this path: a deprecation from the extension itself says nothing about the page and is swallowed | YAML parse error: part of the document would be dropped: ... |
 | Multiple documents | the stream holds more than one document (`---` separators); a page declaration is a single document | YAML stream holds 2 documents; a page declaration is a single document (remove the --- separators) |
 | Empty document | the document is empty (`''` / `~` / `null`) | YAML document is empty; a page declaration must be a mapping |
-| Root type error | root is not a mapping, naming the type actually received | YAML root must be a mapping (page object), got boolean |
+| Root type error | root is not a mapping, naming the type actually received | YAML root must be a mapping (page object), got boolean (a sequence root is named as such: got a sequence (a list of items)) |
 | Structure error | a top-level rule is violated | page: layout and body cannot be set together; use sections when layout is set |
 | Title conflict | the `title` key and a `title` section both set the page title — they fill the same section, so keeping both would discard one in silence | page: title and a "title" section both set the page title; keep one of them |
 | Unsafe environment | `yaml.decode_php` is on and `ini_set()` cannot turn it off, so the document cannot be read without risking object injection | yaml.decode_php is enabled and cannot be turned off for this parse; a page declaration must not deserialize !php/object tags (set yaml.decode_php=0 in php.ini) |
@@ -627,6 +627,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | CLI | single-file compile / directory recursion / output-dir / --check / --help / unknown option rejected / failure exit code |
 | Installation | missing Composer autoloader / missing `ext-yaml` / an unexpected `Error`: one stderr line, exit code 1, no stack trace; `--help` still answers |
 | untrusted YAML | `!php/object` is not deserialized even with `yaml.decode_php=1` (the directive is forced off for the parse and the host setting restored); an environment that keeps it on without `ini_set()` is refused by name |
+| Root shape and parse severities | a sequence root is named as a sequence rather than as an "array"; only warning and notice severities become `part of the document would be dropped`, other severities are swallowed |
 | Integration | compiled artifact renders successfully after second compilation via TemplateCompiler (interop with migears/template) |
 | Copy consistency | built-in components byte-for-byte identical to `migears/xml-pages` (validated on a monorepo checkout, skipped on standalone install) |
 | Front-end parity | the same page written in both syntaxes compiles to the same artifact, and the same mistake is refused with the same message; corpus in `tests/fixtures/pages` and `tests/fixtures/errors`, each half mirrored in `migears/xml-pages` (validated on a monorepo checkout, skipped on standalone install) |
@@ -1152,10 +1153,10 @@ views/pages/users.page.yaml: sections.content[2]: unknown node type "foo"
 | 类别 | 检测 | 示例 |
 |------|------|------|
 | YAML 语法错误 | `yaml_parse` 返回 false——仅限真正的解析失败 | YAML syntax error: ... |
-| YAML 解析警告 | `yaml_parse` 成功但发出了一条或多条警告——返回的语法树已缺失文档的一部分 | YAML parse error: part of the document would be dropped: ... |
+| YAML 解析警告 | `yaml_parse` 成功但有 warning 或 notice——返回的语法树已缺失文档的一部分。只有这两种 severity 走这条路径：扩展自身的弃用提示与页面无关，直接吞掉 | YAML parse error: part of the document would be dropped: ... |
 | 多文档流 | 流里有多个文档（`---` 分隔）；页面声明只能是单个文档 | YAML stream holds 2 documents; a page declaration is a single document (remove the --- separators) |
 | 空文档 | 文档为空（`''` / `~` / `null`） | YAML document is empty; a page declaration must be a mapping |
-| 根类型错误 | 根不是映射，并给出实际收到的类型 | YAML root must be a mapping (page object), got boolean |
+| 根类型错误 | 根不是映射，并给出实际收到的类型 | YAML root must be a mapping (page object), got boolean（序列根会点名序列：got a sequence (a list of items)） |
 | 结构错误 | 顶层规则违反 | page: layout and body cannot be set together; use sections when layout is set |
 | title 冲突 | `title` 键与 `title` section 同时设置页面标题——两者填的是同一个 section，同时保留会静默丢弃一个 | page: title and a "title" section both set the page title; keep one of them |
 | 环境不安全 | `yaml.decode_php` 开启且 `ini_set()` 关不掉它，此时读文档无法排除对象注入 | yaml.decode_php is enabled and cannot be turned off for this parse; a page declaration must not deserialize !php/object tags (set yaml.decode_php=0 in php.ini) |
@@ -1271,6 +1272,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | CLI | 单文件编译 / 目录递归 / output-dir / --check / --help / 未识别选项被拒 / 失败退出码 |
 | 安装环境 | 缺 Composer autoloader / 缺 `ext-yaml` / 未预料 `Error`：stderr 一行、退出码 1、无调用栈；`--help` 仍可响应 |
 | 不可信 YAML | `yaml.decode_php=1` 时 `!php/object` 也不会被反序列化（解析期间强制关闭，宿主设置随后还原）；环境保持其开启且无 `ini_set()` 时按名报错 |
+| 根形态与解析 severity | 序列根会点名序列而不是笼统报「array」；只有 warning 与 notice 才成为「文档的一部分会被丢弃」，其它 severity 一律吞掉 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
 | 副本一致性 | 内置组件与 `migears/xml-pages` 逐字相同（同仓检出时校验，独立安装时跳过） |
 | 双前端对拍 | 同一页面用两种语法写出，编译产物逐字节相同；同一个错误被拒时消息也相同。语料在 `tests/fixtures/pages` 与 `tests/fixtures/errors`，每一半镜像于 `migears/xml-pages`（同仓检出时校验，独立安装时跳过） |

@@ -1120,6 +1120,18 @@ sections:
         $this->expectError("- type: text\n  text: hi\n", 'YAML root must be a mapping (page object)');
     }
 
+    public function testRootSequenceIsNamedAsASequence(): void
+    {
+        // gettype() answers `array` for a mapping and a sequence alike, so the
+        // message has to say which one the source actually wrote.
+        try {
+            $this->compile("- type: text\n  text: hi\n");
+            $this->fail('should have failed to compile');
+        } catch (CompileException $e) {
+            $this->assertStringContainsString('got a sequence (a list of items)', $e->getMessage());
+        }
+    }
+
     public function testComponentDataMustBeAMapOfLiteralKeys(): void
     {
         $this->expectError(

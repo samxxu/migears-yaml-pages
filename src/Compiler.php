@@ -62,10 +62,18 @@ class Compiler extends PagesCompiler
             $forcedDecodePhp = true;
         }
 
-        $errors = [];
+        $warnings = [];
         $ndocs = 0;
-        set_error_handler(static function (int $severity, string $message) use (&$errors): bool {
-            $errors[] = $message;
+        set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+            // Every message is swallowed either way — the caller gets a compile
+            // error, not parser chatter — but only the severities libyaml uses to
+            // report a document it could not read faithfully become that error.
+            // A deprecation from a future ext-yaml says nothing about this page,
+            // and failing a build over it would let the extension's lifecycle leak
+            // into the page author's.
+            if (self::reportsLostData($severity)) {
+                $warnings[] = $message;
+            }
             return true;
         });
         try {
@@ -89,11 +97,11 @@ class Compiler extends PagesCompiler
         // page renders and the class is missing with nothing to show for it.
         // Keeping every warning also means a failure names all of them instead of
         // only the last one.
-        if ($errors !== []) {
+        if ($warnings !== []) {
             $prefix = $documents === false
                 ? 'YAML syntax error'
                 : 'YAML parse error: part of the document would be dropped';
-            throw new CompileException($prefix . ': ' . implode('; ', $errors));
+            throw new CompileException($prefix . ': ' . implode('; ', $warnings));
         }
 
         // A stream may hold several documents ('---' separated), but a page
@@ -121,11 +129,30 @@ class Compiler extends PagesCompiler
         // the empty mapping as much as the empty sequence, so it is left to the
         // "missing page content" path.
         if (! is_array($page) || ($page !== [] && array_is_list($page))) {
-            throw new CompileException('YAML root must be a mapping (page object), got ' . gettype($page)
+            // A sequence and a mapping are both `array` to gettype(), so the list
+            // test is what tells them apart — and the message has to say which one
+            // arrived, or a source that plainly wrote `- ` items is reported as an
+            // "array" the author cannot see in what they wrote.
+            $found = is_array($page) && array_is_list($page) ? 'a sequence (a list of items)' : gettype($page);
+            throw new CompileException('YAML root must be a mapping (page object), got ' . $found
                 . '; a page declaration is a mapping of title / layout / body / sections');
         }
 
         return $page;
+    }
+
+    /**
+     * Whether a PHP severity means libyaml could not read the document the way it
+     * was written — the case that must fail rather than compile into a page with
+     * pieces missing. Warnings and notices are how libyaml reports that; anything
+     * else is noise about the extension itself.
+     */
+    protected static function reportsLostData(int $severity): bool
+    {
+        return $severity === E_WARNING
+            || $severity === E_NOTICE
+            || $severity === E_USER_WARNING
+            || $severity === E_USER_NOTICE;
     }
 
     /**
