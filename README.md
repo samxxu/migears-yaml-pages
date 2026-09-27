@@ -392,7 +392,7 @@ The CLI prints errors to stderr with the file name; directory mode keeps going o
 composer test
 ```
 
-Unit tests assert exact compiled output; integration tests render the compiled page through the full miGears Template pipeline.
+Unit tests assert exact compiled output; integration tests render the compiled page through the full miGears Template pipeline. With `migears/xml-pages` checked out beside this package, `FrontEndParityTest` compiles the same page written in both syntaxes and requires the two artefacts to be identical — every fixture under `tests/fixtures/pages` has an XML twin, and every one under `tests/fixtures/errors` must be refused with the same message.
 
 ## License
 
@@ -790,7 +790,7 @@ CLI 将错误输出到 stderr 并附文件名；目录模式继续处理其余�
 composer test
 ```
 
-单元测试断言编译产物，集成测试把编译产物经 migears/template 完整渲染验证。
+单元测试断言编译产物，集成测试把编译产物经 migears/template 完整渲染验证。当 `migears/xml-pages` 与本包并排检出时，`FrontEndParityTest` 会把同一页面用两种语法各编译一次并要求产物完全一致——`tests/fixtures/pages` 下每个 fixture 都有对应的 XML 孪生文件，`tests/fixtures/errors` 下的每个则必须被同样的消息拒绝。
 
 ## License
 

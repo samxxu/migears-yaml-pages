@@ -1,0 +1,13 @@
+body:
+  - type: el
+    tag: div
+    class: wrap
+    x-on:click: open
+    data-x: quoted
+    # The two ways of writing an attribute name the other syntax cannot spell
+    # directly: XML needs <attr name="..." value="..."/>, YAML quotes the key.
+    # Both must land on the element identically.
+    "@click.prevent": save
+    body:
+      - type: text
+        text: Body

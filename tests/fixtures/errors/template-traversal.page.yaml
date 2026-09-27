@@ -1,0 +1,5 @@
+layout: ../outside
+sections:
+  content:
+    - type: text
+      text: x

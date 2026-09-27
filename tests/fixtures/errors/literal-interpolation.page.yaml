@@ -1,0 +1,8 @@
+body:
+  - type: table
+    items: u
+    as: row
+    empty: '{{ x }}'
+    columns:
+      - label: A
+        pop: '{{ row.a }}'

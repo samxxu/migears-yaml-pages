@@ -1,0 +1,70 @@
+layout: layout/main
+title: Users
+sections:
+  " content ":
+    - type: heading
+      level: 2
+      text: List
+    - type: text
+      text: 'Total: {{ total }}'
+    - type: each
+      items: users
+      as: u
+      index: i
+      body:
+        - type: link
+          href: /u/{{ u.id }}
+          text: '{{ u.name }}'
+    - type: if
+      when: admin
+      then:
+        - type: text
+          text: Admin
+      else: []
+    - type: table
+      items: users
+      as: row
+      empty: None
+      columns:
+        - label: Name
+          pop: '{{ row.name }}'
+        - label: Actions
+          content:
+            - type: text
+              text: Edit
+    - type: form
+      action: /s
+      fields:
+        - type: field
+          name: q
+          label: Search
+          placeholder: Name
+        - type: field
+          name: role
+          label: Role
+          input: select
+          options:
+            a: A
+        - type: field
+          name: bio
+          label: Bio
+          input: textarea
+          rows: 3
+        - type: field
+          name: ok
+          label: Active
+          input: checkbox
+    - type: el
+      tag: div
+      class: wrap
+      # Quoted on purpose: bare `y` is a YAML 1.1 boolean, so an unquoted value
+      # would reach the artefact as "true". The XML half of this pair writes the
+      # same attribute as data-x="y", and the two artefacts must still agree.
+      data-x: 'y'
+      body:
+        - type: component
+          name: card
+          data:
+            title: '{{ title }}'
+        - type: component
+          name: badge

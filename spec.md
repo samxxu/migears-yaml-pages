@@ -578,8 +578,10 @@ migears-yaml-pages/
     ├── CliTest.php
     ├── IntegrationTest.php
     ├── BundledComponentsTest.php    cross-package copy consistency (validated on a monorepo checkout, skipped on standalone install)
+    ├── FrontEndParityTest.php       the same page written in both syntaxes must compile to the same artefact (same conditions)
     └── fixtures/
         ├── pages/           .page.yaml input samples
+        ├── errors/          .page.yaml samples that must be refused, paired as above
         └── views/           layouts for integration tests
 ```
 
@@ -627,6 +629,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 | untrusted YAML | `!php/object` is not deserialized even with `yaml.decode_php=1` (the directive is forced off for the parse and the host setting restored); an environment that keeps it on without `ini_set()` is refused by name |
 | Integration | compiled artifact renders successfully after second compilation via TemplateCompiler (interop with migears/template) |
 | Copy consistency | built-in components byte-for-byte identical to `migears/xml-pages` (validated on a monorepo checkout, skipped on standalone install) |
+| Front-end parity | the same page written in both syntaxes compiles to the same artefact, and the same mistake is refused with the same message; corpus in `tests/fixtures/pages` and `tests/fixtures/errors`, each half mirrored in `migears/xml-pages` (validated on a monorepo checkout, skipped on standalone install) |
 
 ## 12. Explicitly Not Done (future candidates)
 
@@ -1219,8 +1222,10 @@ migears-yaml-pages/
     ├── CliTest.php
     ├── IntegrationTest.php
     ├── BundledComponentsTest.php   跨包副本一致性（同仓检出时校验，独立安装时跳过）
+    ├── FrontEndParityTest.php      同一页面用两种语法写出，编译产物必须一致（同样条件）
     └── fixtures/
         ├── pages/           .page.yaml 输入样例
+        ├── errors/          必须被拒的 .page.yaml 样例，配对方式同上
         └── views/           集成测试用布局
 ```
 
@@ -1268,6 +1273,7 @@ composer 依赖说明：运行期实际执行的是生成的模板与内置组�
 | 不可信 YAML | `yaml.decode_php=1` 时 `!php/object` 也不会被反序列化（解析期间强制关闭，宿主设置随后还原）；环境保持其开启且无 `ini_set()` 时按名报错 |
 | 集成 | 编译产物经 TemplateCompiler 二次编译后渲染成功（与 migears/template 联测） |
 | 副本一致性 | 内置组件与 `migears/xml-pages` 逐字相同（同仓检出时校验，独立安装时跳过） |
+| 双前端对拍 | 同一页面用两种语法写出，编译产物逐字节相同；同一个错误被拒时消息也相同。语料在 `tests/fixtures/pages` 与 `tests/fixtures/errors`，每一半镜像于 `migears/xml-pages`（同仓检出时校验，独立安装时跳过） |
 
 ## 12. 明确不做（后续候选）
 
