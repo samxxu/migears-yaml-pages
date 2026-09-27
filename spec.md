@@ -330,7 +330,7 @@ Nested `each` is allowed; an inner `as` with the same name naturally shadows acc
 | Field | Type | Required | Description |
 |------|------|------|------|
 | `name` | string | yes | Field name (the `name` / `id` attribute) |
-| `label` | string | yes | Label text; for `submit` type it is the button text |
+| `label` | string | yes, except `hidden` | Label text; for `submit` type it is the button text. A hidden field has no label element, so it needs none; one written on it is reported through the warn callback instead of being dropped |
 | `input` | enum | no | See below, default `text` |
 | `value` | path | no | Bound value, compiled to `value="## $path ?? '' ##"`; not supported on `submit` (button text uses `label`) |
 | `required` | bool | no | Default false; adds `required` on inputs that support the attribute; writing `true` on `hidden` / `submit` is a compile error |
@@ -974,7 +974,7 @@ body/sections 中的每个节点必须有 `type` 字段。共 9 种节点 + 2 �
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `name` | string | 是 | 字段名（`name` / `id` 属性） |
-| `label` | string | 是 | 标签文本；`submit` 类型时为按钮文字 |
+| `label` | string | 是，`hidden` 除外 | 标签文本；`submit` 类型时为按钮文字。hidden 字段没有 label 元素，不必填；写了则经 warn 回调报出，不再静默丢弃 |
 | `input` | enum | 否 | 见下，默认 `text` |
 | `value` | path | 否 | 绑定值，编译为 `value="## $path ?? '' ##"`；不支持 `submit`（按钮文字用 `label`） |
 | `required` | bool | 否 | 默认 false；在支持该属性的 input 上加 `required`，`hidden` / `submit` 上写 true 属编译错误 |

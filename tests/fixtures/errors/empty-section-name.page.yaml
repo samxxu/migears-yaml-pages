@@ -1,0 +1,5 @@
+layout: layout/main
+sections:
+  "  ":
+    - type: text
+      text: A
