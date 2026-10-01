@@ -17,19 +17,20 @@ Legend — **P0** functional or security · **P1** documentation that fails when
 
 | | |
 |---|---|
-| Unsettled | P0 0 · P1 0 · P2 1 · P3 3 · other 0 |
-| Settled | 0 of 4 |
-| Waiting on the owner | `P2-1`, `P3-1`, `P3-2`, `P3-3` |
-| Waiting on the reviewer | _nothing_ |
+| Unsettled | P0 0 · P1 0 · P2 1 · P3 1 · other 0 |
+| Settled | 3 of 5 |
+| Waiting on the owner | _nothing_ |
 | Waiting on the coordinator | _nothing_ |
-| Deferred, owing nobody | _nothing_ |
+| Waiting on the reviewer | _nothing_ |
+| Deferred, owing nobody | `P2-1`, `P3-2` |
 
 | id | level | status | title |
 |---|---|---|---|
-| [`P2-1`](issues/P2-1.md) | P2 | **open** | Duplicate mapping keys are still merged silently by libyaml, and this … |
-| [`P3-1`](issues/P3-1.md) | P3 | **open** | When the root is a YAML sequence the message says 'got array' (gettype … |
-| [`P3-2`](issues/P3-2.md) | P3 | **open** | The same semantic value is accepted differently from the XML side (see … |
-| [`P3-3`](issues/P3-3.md) | P3 | **open** | `set_error_handler` during parsing treats any severity as fatal, so a … |
+| [`P0-1`](issues/P0-1.md) | P0 | **verified** | The `yaml.decode_php` guard read `(int) $decodePhp !== 0`, which is … |
+| [`P2-1`](issues/P2-1.md) | P2 | **deferred** | Duplicate mapping keys in a YAML document are silently merged by … |
+| [`P3-1`](issues/P3-1.md) | P3 | **verified** | When the root is a YAML sequence the message says 'got array' (gettype … |
+| [`P3-2`](issues/P3-2.md) | P3 | **deferred** | The same semantic value is accepted differently from the XML side (see … |
+| [`P3-3`](issues/P3-3.md) | P3 | **verified** | `set_error_handler` during parsing treats any severity as fatal, so a … |
 
 ## Unclosed
 
@@ -38,16 +39,14 @@ highest severity first. `waiting on` is the party who acts next, read from that 
 
 | | |
 |---|---|
-| Unclosed | **4** of 4 |
-| By status | `open` 4 |
-| Waiting on | owner 4 |
+| Unclosed | **2** of 5 |
+| By status | `deferred` 2 |
+| Waiting on | - 2 |
 
 | level | item | status | waiting on | title |
 |---|---|---|---|---|
-| **P2** | [`P2-1`](issues/P2-1.md) | `open` | owner | Duplicate mapping keys are still merged silently by libyaml, and this … |
-| **P3** | [`P3-1`](issues/P3-1.md) | `open` | owner | When the root is a YAML sequence the message says 'got array' (gettype … |
-| **P3** | [`P3-2`](issues/P3-2.md) | `open` | owner | The same semantic value is accepted differently from the XML side (see … |
-| **P3** | [`P3-3`](issues/P3-3.md) | `open` | owner | `set_error_handler` during parsing treats any severity as fatal, so a … |
+| **P2** | [`P2-1`](issues/P2-1.md) | `deferred` | - | Duplicate mapping keys in a YAML document are silently merged by … |
+| **P3** | [`P3-2`](issues/P3-2.md) | `deferred` | - | The same semantic value is accepted differently from the XML side (see … |
 
 ## Verdict
 
@@ -88,19 +87,20 @@ No test for the yaml.decode_php ini-set guard path (when ini_set is available vs
 
 | | |
 |---|---|
-| 未了结 | P0 0 · P1 0 · P2 1 · P3 3 · 其他 0 |
-| 已了结 | 0 / 4 |
-| 等负责人 | `P2-1`, `P3-1`, `P3-2`, `P3-3` |
-| 等评审方 | _无_ |
+| 未了结 | P0 0 · P1 0 · P2 1 · P3 1 · 其他 0 |
+| 已了结 | 3 / 5 |
+| 等模块主 | _无_ |
 | 等协调人 | _无_ |
-| 已暂缓，不欠谁 | _无_ |
+| 等评审方 | _无_ |
+| 已暂缓，不欠谁 | `P2-1`, `P3-2` |
 
 | id | 级别 | 状态 | 标题 |
 |---|---|---|---|
-| [`P2-1`](issues/P2-1.md) | P2 | **open** | 重复映射键仍被 libyaml 静默合并，本轮确认范围不止 sections，还包括 options 与 data——而 XML … |
-| [`P3-1`](issues/P3-1.md) | P3 | **open** | 根为 YAML 序列时报 "got array"（gettype 只给 array，不区分 list），而 spec §9 举例为 "got … |
-| [`P3-2`](issues/P3-2.md) | P3 | **open** | 同一语义值与 XML 侧接受面不同（完整例子见 xml-pages 一节）：YAML 要求原生标量，required: 1 与 rows: … |
-| [`P3-3`](issues/P3-3.md) | P3 | **open** | 解析期间装的 set_error_handler 把任何 severity 都当致命，因此将来 ext-yaml … |
+| [`P0-1`](issues/P0-1.md) | P0 | **verified** | `yaml.decode_php` 守卫写的是 `(int) $decodePhp !== 0`，会被字母拼写的真值 … |
+| [`P2-1`](issues/P2-1.md) | P2 | **deferred** | YAML 文档中的重复映射键会被 libyaml 静默合并，PHP 看到文档之前第一个值就已丢失、第二个值胜出，且无告警。这是 README … |
+| [`P3-1`](issues/P3-1.md) | P3 | **verified** | 根为 YAML 序列时报 "got array"（gettype 只给 array，不区分 list），而 spec §9 举例为 "got … |
+| [`P3-2`](issues/P3-2.md) | P3 | **deferred** | 同一语义值与 XML 侧接受面不同（完整例子见 xml-pages 一节）：YAML 要求原生标量，required: 1 与 rows: … |
+| [`P3-3`](issues/P3-3.md) | P3 | **verified** | 解析期间装的 set_error_handler 把任何 severity 都当致命，因此将来 ext-yaml … |
 
 ## 未关闭
 
@@ -109,16 +109,14 @@ No test for the yaml.decode_php ini-set guard path (when ini_set is available vs
 
 | | |
 |---|---|
-| 未关闭 | **4** / 4 |
-| 按状态 | `open` 4 |
-| 等在谁 | 负责人 4 |
+| 未关闭 | **2** / 5 |
+| 按状态 | `deferred` 2 |
+| 等在谁 | - 2 |
 
 | 级别 | 条目 | 状态 | 等在谁 | 标题 |
 |---|---|---|---|---|
-| **P2** | [`P2-1`](issues/P2-1.md) | `open` | 负责人 | 重复映射键仍被 libyaml 静默合并，本轮确认范围不止 sections，还包括 options 与 data——而 XML … |
-| **P3** | [`P3-1`](issues/P3-1.md) | `open` | 负责人 | 根为 YAML 序列时报 "got array"（gettype 只给 array，不区分 list），而 spec §9 举例为 "got … |
-| **P3** | [`P3-2`](issues/P3-2.md) | `open` | 负责人 | 同一语义值与 XML 侧接受面不同（完整例子见 xml-pages 一节）：YAML 要求原生标量，required: 1 与 rows: … |
-| **P3** | [`P3-3`](issues/P3-3.md) | `open` | 负责人 | 解析期间装的 set_error_handler 把任何 severity 都当致命，因此将来 ext-yaml … |
+| **P2** | [`P2-1`](issues/P2-1.md) | `deferred` | - | YAML 文档中的重复映射键会被 libyaml 静默合并，PHP 看到文档之前第一个值就已丢失、第二个值胜出，且无告警。这是 README … |
+| **P3** | [`P3-2`](issues/P3-2.md) | `deferred` | - | 同一语义值与 XML 侧接受面不同（完整例子见 xml-pages 一节）：YAML 要求原生标量，required: 1 与 rows: … |
 
 ## 结论
 

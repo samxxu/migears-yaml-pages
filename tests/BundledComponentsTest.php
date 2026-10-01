@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Both frontend packages ship the same set of bundled components
- * (see spec.md §10, the copy note).
+ * (see SPEC.md §10, the copy note).
  *
  * "Edit one and you must sync the other" is a documented promise; this test
  * turns it into an executable check: byte-compare when both packages are

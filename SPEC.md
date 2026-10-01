@@ -7,7 +7,7 @@ Date: 2026-09-20
 
 yaml-pages is an optional companion module of the miGears framework: a YAML-based declarative page definition tool that compiles page declarations into template files for migears/template (`.tpl.php` syntax). It is not a core component, does not take on any runtime responsibility, and only performs a compile-time "declaration → template" translation.
 
-It is the **YAML syntax front-end** of `migears/pages`: after parsing `.page.yaml` into the array IR of the pages package, node compilation, validation, interpolation, and attribute passthrough are all handled by the shared compiler (the IR contract is described in migears/pages' spec.md). This package keeps only the YAML parsing layer and a few spelling hooks, and shares the same node vocabulary and compiled artifacts as `migears/xml-pages`.
+It is the **YAML syntax front-end** of `migears/pages`: after parsing `.page.yaml` into the array IR of the pages package, node compilation, validation, interpolation, and attribute passthrough are all handled by the shared compiler (the IR contract is described in migears/pages' SPEC.md). This package keeps only the YAML parsing layer and a few spelling hooks, and shares the same node vocabulary and compiled artifacts as `migears/xml-pages`.
 
 It solves three problems:
 
@@ -652,7 +652,7 @@ Regression tests of the shared compilation layer (base behavior of node grammar,
 
 yaml-pages 是 miGears 框架的可选配套模块：一种基于 YAML 的声明式页面定义工具，把页面声明编译为 migears/template 的模板文件（`.tpl.php` 语法）。它不是核心组件，不承担运行期职责，只做编译期的"声明 → 模板"翻译。
 
-它是 `migears/pages` 的 **YAML 语法前端**：把 `.page.yaml` 解析成 pages 包的数组 IR 后，节点编译、校验、插值、属性透传全部由共享编译器完成（IR 契约见 migears/pages 的 spec.md）。本包只保留 YAML 解析层与少量拼写钩子，与 `migears/xml-pages` 共享同一套节点词表与编译产物。
+它是 `migears/pages` 的 **YAML 语法前端**：把 `.page.yaml` 解析成 pages 包的数组 IR 后，节点编译、校验、插值、属性透传全部由共享编译器完成（IR 契约见 migears/pages 的 SPEC.md）。本包只保留 YAML 解析层与少量拼写钩子，与 `migears/xml-pages` 共享同一套节点词表与编译产物。
 
 它解决三个问题：
 
