@@ -52,7 +52,12 @@ class Compiler extends PagesCompiler
         // it cannot be read safely whatever we do.
         $decodePhp = ini_get('yaml.decode_php');
         $forcedDecodePhp = false;
-        if (is_string($decodePhp) && trim($decodePhp) !== '' && (int) $decodePhp !== 0) {
+        // Read the setting the way ext-yaml reads it, not with a cast to int:
+        // `(int) 'On'` is 0, so a host that spells it `On` — or `true` / `yes`,
+        // the spellings a php.ini actually uses — used to slip past this guard,
+        // leave the directive on, and let libyaml unserialize whatever the tag
+        // carried. See iniIsEnabled().
+        if (is_string($decodePhp) && self::iniIsEnabled($decodePhp)) {
             if (! function_exists('ini_set') || ini_set('yaml.decode_php', '0') === false) {
                 throw new CompileException(
                     'yaml.decode_php is enabled and cannot be turned off for this parse; a page declaration must not '
@@ -153,6 +158,21 @@ class Compiler extends PagesCompiler
             || $severity === E_NOTICE
             || $severity === E_USER_WARNING
             || $severity === E_USER_NOTICE;
+    }
+
+    /**
+     * Whether a boolean ini setting means the directive is on. ext-yaml reads
+     * `yaml.decode_php` with PHP's own boolean-ini rule — the words on / yes /
+     * true are on, anything else is read as a number — so the same rule decides
+     * whether a `!php/object` tag would be honoured. A bare `(int)` cast is not
+     * that rule: it answers 0 for every alphabetic spelling, so the directive
+     * would be left on and the tag decoded. Only the on-words and non-zero
+     * numbers pass.
+     */
+    protected static function iniIsEnabled(string $value): bool
+    {
+        return in_array(strtolower($value), ['on', 'yes', 'true'], true)
+            || (int) $value !== 0;
     }
 
     /**

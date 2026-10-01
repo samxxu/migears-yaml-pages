@@ -1279,6 +1279,32 @@ sections:
     }
 
     /**
+     * The guard reads `yaml.decode_php` the way ext-yaml reads it, so the on-words
+     * (`On` / `on` / `true` / `yes`) count as on. A cast to int — what the guard
+     * used first — answers 0 for every one of them, which left the directive on and
+     * let libyaml unserialize the `!php/object` payload: the object-injection path
+     * the directive is turned off to close. Host code that sets the ini at run time
+     * can spell it this way, so each spelling has to be forced off and restored.
+     */
+    public function testPhpObjectTagIsNotDeserializedWhateverTruthySpelling(): void
+    {
+        $previous = ini_get('yaml.decode_php');
+
+        try {
+            foreach (['1', 'On', 'on', 'true', 'yes'] as $spelling) {
+                ini_set('yaml.decode_php', $spelling);
+
+                $out = $this->compile("body:\n  - type: text\n    text: !php/object \"O:8:\\\"stdClass\\\":0:{}\"");
+
+                self::assertStringContainsString('O:8:', $out, "decode_php={$spelling} let the tag be decoded");
+                self::assertSame($spelling, ini_get('yaml.decode_php'), "decode_php={$spelling} was not restored");
+            }
+        } finally {
+            ini_set('yaml.decode_php', (string) $previous);
+        }
+    }
+
+    /**
      * An environment that keeps the directive on *and* blocks ini_set() cannot be
      * read safely, so it is refused with a message naming the directive instead of
      * parsing anyway.

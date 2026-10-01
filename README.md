@@ -20,6 +20,22 @@ A declarative YAML page definition tool that compiles `.page.yaml` declarations 
 - Built-in components (`card`, `button`, `alert`, `badge`) plus custom components written per miGears Template conventions
 - Deliberately out of scope: business logic, event handling, state management, routing, runtime YAML parsing — those belong to the front-end framework you pair it with
 
+## Boundaries
+
+**In scope**
+
+- The YAML front end: parsing a `.page.yaml` declaration into the array IR (`MiGears\YamlPages\Compiler extends MiGears\Pages\Compiler`), using PECL `ext-yaml`'s `yaml_parse` — a hard runtime requirement (`ext-yaml` sits in this package's `require`).
+- The YAML surface spelling: a quoted key can express any attribute name (`"@click"`, `":href"`, `x-on:click`), so there is no `__event` mapping and no `<attr>` node; a `__`-prefixed key is refused with a hint to write `"@..."`.
+- YAML-facing parse behaviour and errors: one document per stream, any libyaml warning is fatal, `yaml.decode_php` is forced off for the parse, and errors carry a node path (`MiGears\YamlPages\Exception\CompileException`); plus the `bin/yaml-pages compile [output-dir] [--check]` CLI.
+- The four built-in components shipped in `components/` (`card`, `button`, `alert`, `badge`) and the runnable examples under `examples/`.
+
+**Not in scope (by design)**
+
+- The node vocabulary, node compilation, interpolation, validation and attribute passthrough — inherited from the shared compiler in `migears/pages`; this package overrides only `parse()` and the spelling hooks.
+- The XML spelling of the same declarations — owned by `migears/xml-pages` (the XML twin: `__click` for `@click`, `<attr>` nodes, duplicate elements refused); the two front ends must compile to identical artifacts.
+- The second compilation to pure PHP and rendering at runtime — owned by `migears/template`'s `TemplateCompiler`, reached transitively through `migears/pages`.
+- Business logic, event handling, state management, routing and runtime YAML parsing — belong to the front-end framework you pair the page with; they never enter YAML.
+
 ## How It Works
 
 **Two deliberate compilations:**
@@ -417,6 +433,22 @@ MIT
 - 通用容器 `el`，给 `x-data` 这类包裹层属性一个落点
 - 内置组件（`card`、`button`、`alert`、`badge`），自定义组件按 miGears Template 规范编写
 - 明确不做：业务逻辑、事件处理、状态管理、路由、运行期解析 YAML —— 这些交给你搭配的前端框架
+
+## 边界
+
+**范围内**
+
+- YAML 前端：把 `.page.yaml` 声明解析为数组 IR（`MiGears\YamlPages\Compiler extends MiGears\Pages\Compiler`），解析用 PECL `ext-yaml` 的 `yaml_parse` —— 这是硬性运行要求（`ext-yaml` 在本包 `require` 中）。
+- YAML 表层拼写：引号键可以表达任何属性名（`"@click"`、`":href"`、`x-on:click`），因此没有 `__event` 映射、也没有 `<attr>` 节点；`__` 开头的键会被拒并提示改写为 `"@..."`。
+- 面向 YAML 的解析行为与报错：一个流只能一个文档、任何 libyaml 警告都致命、解析期间强制关闭 `yaml.decode_php`、错误带节点路径（`MiGears\YamlPages\Exception\CompileException`）；以及 `bin/yaml-pages compile [output-dir] [--check]` CLI。
+- `components/` 随包分发的四个内置组件（`card`、`button`、`alert`、`badge`）与 `examples/` 下可运行的示例。
+
+**范围外（刻意不做）**
+
+- 节点词表、节点编译、插值、校验与属性透传 —— 继承自 `migears/pages` 的共享编译器；本包只覆写 `parse()` 与拼写钩子。
+- 同一套声明的 XML 写法 —— 由 `migears/xml-pages` 承担（XML 孪生：用 `__click` 表示 `@click`、有 `<attr>` 节点、重复元素直接报错）；两个前端必须编译出完全一致的产物。
+- 第二次编译为纯 PHP 与运行期渲染 —— 由 `migears/template` 的 `TemplateCompiler` 承担，经 `migears/pages` 间接引入。
+- 业务逻辑、事件处理、状态管理、路由与运行期解析 YAML —— 属于你搭配页面的前端框架，永不进入 YAML。
 
 ## 工作原理
 
